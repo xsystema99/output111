@@ -7,7 +7,7 @@ namespace chordcore {
 
 void PlaybackScheduler::setNotes(std::vector<NoteEvent> notes) {
     notes_ = std::move(notes);
-    active_.assign(notes_.size(), 0);
+    active_.assign(notes_.size(), static_cast<char>(0));
     // Worst case per note in one block: release (jump), start, and end.
     events_.clear();
     events_.reserve(notes_.size() * 3 + 16);
@@ -17,7 +17,7 @@ void PlaybackScheduler::setNotes(std::vector<NoteEvent> notes) {
 }
 
 void PlaybackScheduler::reset() {
-    std::fill(active_.begin(), active_.end(), 0);
+    std::fill(active_.begin(), active_.end(), static_cast<char>(0));
     events_.clear();
     wasPlaying_ = false;
     expectedStartTick_ = 0.0;
