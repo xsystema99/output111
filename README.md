@@ -16,7 +16,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Core builds with `-Werror` | Verified with g++ 13 and clang 18 (locally and in CI) | local build, Actions |
 | Plugin sources compile against JUCE 8.0.17 headers | **Syntax-only check on Linux** | not a link, not a Windows build |
 | Windows / MSVC build of the VST3 | **Built in CI** (GitHub Actions `windows-latest`, MSVC, Release, 0 warnings); all 66 tests pass on Windows | Actions run for commit `584208d`. The `.vst3` was built but never loaded in a host |
-| Loads in Ableton Live | **Loads and opens** (reported by the user on Live 12.4.16, commit `45d87de`). Export-button and `.mid` import behaviour not yet reported | manual checklist below |
+| Loads in Ableton Live | **Loads and opens** (reported by the user on Live 12.4.16, commit `45d87de`). "Export MIDI..." button works (user-reported). Imported `.mid` contents (chords, timing) not yet reported in detail | manual checklist below |
 | Live MIDI output from `processBlock` | Not implemented (milestone 3) | |
 | State persistence, undo/redo, timeline UI, drag-out of `.mid` | Not implemented (milestones 4, 6, 7) | |
 
