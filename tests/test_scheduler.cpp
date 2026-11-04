@@ -401,3 +401,69 @@ TEST_CASE("property: random transports never leave a stuck note and stay on the 
         }
     }
 }
+
+TEST_CASE("scheduler: swapping the note list mid-chord releases the sounding notes at offset 0", "[scheduler][edit]") {
+    PlaybackScheduler s;
+    const auto demo = makeDemoProgression();
+    s.setNotes(generateNotes(demo));
+
+    // Start inside bar 1: the first chord's notes sound.
+    const auto& on = s.process(TransportBlock{true, 0.0, 120.0, 48000.0, 512});
+    std::vector<std::pair<int, int>> sounding;  // pitch, channel
+    for (const auto& e : on) if (e.noteOn) sounding.emplace_back(e.pitch, e.channel);
+    REQUIRE_FALSE(sounding.empty());
+    REQUIRE(s.activeNoteCount() == sounding.size());
+
+    // The user edits the progression while the transport is rolling.
+    auto edited = demo;
+    edited.key.tonic = 2;
+    s.setNotes(generateNotes(edited));
+
+    // Next block (transport continues): every orphaned note gets exactly one note-off at offset 0.
+    const auto& next = s.process(TransportBlock{true, 512.0 / 48000.0 * 2.0, 120.0, 48000.0, 512});
+    std::vector<std::pair<int, int>> released;
+    for (const auto& e : next) {
+        if (!e.noteOn && e.sampleOffset == 0) released.emplace_back(e.pitch, e.channel);
+    }
+    std::sort(sounding.begin(), sounding.end());
+    std::sort(released.begin(), released.end());
+    CHECK(released == sounding);
+}
+
+TEST_CASE("scheduler: orphaned notes are released even if the transport has stopped", "[scheduler][edit]") {
+    PlaybackScheduler s;
+    s.setNotes(generateNotes(makeDemoProgression()));
+    const auto& on = s.process(TransportBlock{true, 0.0, 120.0, 48000.0, 512});
+    const auto count = std::count_if(on.begin(), on.end(), [](const ScheduledEvent& e) { return e.noteOn; });
+    REQUIRE(count > 0);
+
+    s.setNotes(generateNotes(makeDemoProgression()));
+    const auto& out = s.process(TransportBlock{false, 0.0, 120.0, 48000.0, 512});
+    const auto offs = std::count_if(out.begin(), out.end(), [](const ScheduledEvent& e) { return !e.noteOn && e.sampleOffset == 0; });
+    CHECK(offs == count);
+    CHECK(std::none_of(out.begin(), out.end(), [](const ScheduledEvent& e) { return e.noteOn; }));
+
+    // And only once.
+    CHECK(s.process(TransportBlock{false, 0.0, 120.0, 48000.0, 512}).empty());
+}
+
+TEST_CASE("scheduler: after a swap the new notes start cleanly from the transport position", "[scheduler][edit]") {
+    PlaybackScheduler s;
+    s.setNotes(generateNotes(makeDemoProgression()));
+    s.process(TransportBlock{true, 0.0, 120.0, 48000.0, 512});
+
+    auto edited = makeDemoProgression();
+    edited.key.tonic = 7;
+    const auto newNotes = generateNotes(edited);
+    s.setNotes(newNotes);
+
+    // Transport is still mid-bar-1: the new chord's notes start at offset 0 alongside the releases.
+    const auto& out = s.process(TransportBlock{true, 0.1, 120.0, 48000.0, 512});
+    std::vector<int> started;
+    for (const auto& e : out) if (e.noteOn) { started.push_back(e.pitch); CHECK(e.sampleOffset == 0); }
+    std::vector<int> expected;
+    for (const auto& n : newNotes) if (n.startTick == 0) expected.push_back(n.pitch);
+    std::sort(started.begin(), started.end());
+    std::sort(expected.begin(), expected.end());
+    CHECK(started == expected);
+}

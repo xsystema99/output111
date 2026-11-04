@@ -149,4 +149,45 @@ ParseResult parseRomanNumeral(std::string_view text) {
     return result;
 }
 
+std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
+    if (!chord.isValid()) return std::nullopt;
+
+    const bool diminished = chord.quality == Quality::Diminished;
+    const bool augmented = chord.quality == Quality::Augmented;
+    if (chord.suspension != Suspension::None && (diminished || augmented)) return std::nullopt;
+    if (chord.seventh == Seventh::Diminished && !diminished) return std::nullopt;
+    if (chord.seventh == Seventh::Major && chord.inversion != 0) return std::nullopt;
+
+    static const char* const kUpperNumerals[7] = {"I", "II", "III", "IV", "V", "VI", "VII"};
+    static const char* const kLowerNumerals[7] = {"i", "ii", "iii", "iv", "v", "vi", "vii"};
+    static const char* const kSeventhFigures[4] = {"7", "65", "43", "42"};
+
+    const bool upper = chord.quality == Quality::Major || augmented;
+    std::string s;
+    if (chord.accidental < 0) s += 'b';
+    if (chord.accidental > 0) s += '#';
+    s += (upper ? kUpperNumerals : kLowerNumerals)[chord.degree - 1];
+
+    if (diminished) s += chord.seventh == Seventh::Minor ? "\xC3\xB8" : "o";  // half-diminished or diminished
+    if (augmented) s += '+';
+
+    switch (chord.seventh) {
+        case Seventh::None:
+            if (chord.inversion == 1) s += "6";
+            if (chord.inversion == 2) s += "64";
+            break;
+        case Seventh::Major:
+            s += "maj7";
+            break;
+        case Seventh::Minor:
+        case Seventh::Diminished:
+            s += kSeventhFigures[chord.inversion];
+            break;
+    }
+
+    if (chord.suspension == Suspension::Sus2) s += "sus2";
+    if (chord.suspension == Suspension::Sus4) s += "sus4";
+    return s;
+}
+
 }  // namespace chordcore

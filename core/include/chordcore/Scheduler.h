@@ -49,10 +49,13 @@ struct ScheduledEvent {
 /// never allocate. The class is not thread-safe: use it from one thread at a time.
 class PlaybackScheduler {
 public:
-    /// Replaces the note list (and forgets which notes were sounding).
+    /// Replaces the note list. Notes that are sounding at that moment are not forgotten: their note-offs
+    /// are emitted at offset 0 of the next process() call (even if the transport has stopped), so editing
+    /// while playing can never leave a stuck note. Playback then restarts from the host position, so a
+    /// changed chord sounds immediately.
     void setNotes(std::vector<NoteEvent> notes);
 
-    /// Forgets sounding notes WITHOUT emitting note-offs (use when the host re-initialises the plugin).
+    /// Forgets sounding and orphaned notes WITHOUT emitting note-offs (use when the host re-initialises the plugin).
     void reset();
 
     /// Events for this block, sorted by (sampleOffset, note-offs first, pitch). The reference stays valid
@@ -67,6 +70,11 @@ private:
     std::vector<NoteEvent> notes_;
     std::vector<char> active_;
     std::vector<ScheduledEvent> events_;
+    struct PendingRelease {
+        int pitch;
+        int channel;
+    };
+    std::vector<PendingRelease> pendingReleases_;  ///< sounding notes orphaned by setNotes()
     bool wasPlaying_ = false;
     double expectedStartTick_ = 0.0;  ///< where the next contiguous block should begin
     double previousHi_ = 0.0;         ///< upper edge of the last block's tick window

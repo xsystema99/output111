@@ -17,6 +17,11 @@ struct ChordBlock {
     Tick endTick() const noexcept { return startTick + durationTicks; }
 };
 
+inline bool operator==(const ChordBlock& a, const ChordBlock& b) noexcept {
+    return a.chord == b.chord && a.startTick == b.startTick && a.durationTicks == b.durationTicks;
+}
+inline bool operator!=(const ChordBlock& a, const ChordBlock& b) noexcept { return !(a == b); }
+
 /// The progression model. A plain, copyable value type with no UI or JUCE dependency, so it can be
 /// snapshotted for undo/redo and serialised later.
 struct Progression {
@@ -34,6 +39,11 @@ struct Progression {
     /// Returns a list of problems; empty means the progression is valid.
     std::vector<std::string> validate() const;
 };
+
+inline bool operator==(const Progression& a, const Progression& b) {
+    return a.key == b.key && a.tempoBpm == b.tempoBpm && a.timeSignature == b.timeSignature && a.blocks == b.blocks;
+}
+inline bool operator!=(const Progression& a, const Progression& b) { return !(a == b); }
 
 /// C major, I - V - vi - IV, one 4/4 bar each, 120 BPM. Used by tests, the CLI demo and the plugin shell.
 Progression makeDemoProgression();

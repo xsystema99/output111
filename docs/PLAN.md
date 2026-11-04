@@ -58,7 +58,7 @@ Key rules:
 | **M1 (this)** | Core types, theory (triads, sevenths, inversions, major/minor keys), basic Roman numeral parser, sus2/sus4 (added after M1 sign-off request), 4-chord model, note engine, SMF export, CLI demo, unit tests, minimal JUCE shell with "Export MIDI…" button | Core tests pass; `.mid` validated independently (byte parser + mido); plugin compiles on Windows; loads in Live |
 | M2 | Range/selection export (clip + shift ticks), optional Format 1, tempo map | Tests for clipped notes and range offsets |
 | M3 (**implemented**) | Transport-synchronised MIDI output in `processBlock` from the same `NoteEvent` list (sample-accurate offsets, loop/jump/stop handling, stuck-note protection) | Scheduler unit tests with synthetic playheads; manual Live test |
-| M4 | State persistence (versioned serialisation, ValueTree/JSON), undo/redo | Round-trip tests |
+| M4 (**implemented**, awaiting Live check) | State persistence (versioned JSON), undo/redo | Round-trip, golden-format, hostile-input and undo property tests; manual save/reload in Live |
 | M5 | Extended harmony: 9ths, alterations, secondary dominants, minor-key convention options | Theory tests per chord type |
 | M6 | Timeline UI: draggable/resizable chord blocks, snapping, Roman numeral entry | UI is a thin layer over the model |
 | M7 | Native file drag-out from the plugin (`performExternalDragDropOfFiles`), Ableton verification | Manual test in Live 12.4.16 |
@@ -93,8 +93,26 @@ Advanced features (M2+) are intentionally not started until M1's export has been
   sample early when floating-point noise put a bar-line tick in the previous block).
 - Locate, loop wrap and start are detected as position discontinuities; sounding notes are released first and
   any note sounding at the new position starts immediately.
-- No allocation in `process()`; `setNotes()` pre-sizes everything. Editing (M4/M6) will need a safe hand-over
-  of a new note list to the audio thread.
+- No allocation in `process()`; `setNotes()` pre-sizes everything. Editing needs a safe hand-over
+  of a new note list to the audio thread (done in M4, see 4c).
+
+## 4c. Milestone 4 design notes
+
+- **Format.** One JSON document (`format: "chordsketch-state"`, `version: 1`), hand-written reader/writer in
+  core (no dependency, JUCE-free, same code path in tests). Enums are written as words, tempo with
+  shortest-round-trip `std::to_chars`, so save -> load is exact and files are diffable. A golden test pins the
+  bytes: changing the format means bumping `kStateVersion` and writing a migration. Unknown fields are ignored
+  (forward compatibility), `suspension` is optional (written by this version, absent in hypothetical older
+  files), versions above 1 are refused with a message, and every loaded progression passes `validate()`.
+- **Undo/redo.** `Document` keeps value snapshots (a progression is small). Edits are applied to a copy,
+  validated, then committed, so a rejected edit changes nothing. Consecutive edits with the same coalesce key
+  (tempo slider drag) form one undo step. History is bounded (200) and not persisted.
+- **Threads.** The audio thread never sees the `Document`. After each change the editing thread regenerates the
+  note list (still the single `generateNotes`) and swaps it into the scheduler under a spin lock that the audio
+  thread only *tries* to take: during the swap one block is skipped, nothing blocks. Swapping releases notes that
+  were sounding (tested). Rebuild + install happen inside the document lock so note lists install in edit order.
+- **Known trade-offs.** `setNotes()` allocates while the audio thread is locked out (microseconds, only on edit).
+  A skipped block looks like a position jump to the scheduler, which handles it as a locate (release + restart).
 
 ## 5. Risks and open decisions
 

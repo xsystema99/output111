@@ -6,11 +6,14 @@
 namespace chordcore {
 
 void PlaybackScheduler::setNotes(std::vector<NoteEvent> notes) {
+    for (std::size_t i = 0; i < notes_.size(); ++i) {
+        if (active_[i]) pendingReleases_.push_back({notes_[i].pitch, notes_[i].channel});
+    }
     notes_ = std::move(notes);
     active_.assign(notes_.size(), static_cast<char>(0));
     // Worst case per note in one block: release (jump), start, and end.
     events_.clear();
-    events_.reserve(notes_.size() * 3 + 16);
+    events_.reserve(notes_.size() * 3 + pendingReleases_.size() + 16);
     wasPlaying_ = false;
     expectedStartTick_ = 0.0;
     previousHi_ = 0.0;
@@ -18,6 +21,7 @@ void PlaybackScheduler::setNotes(std::vector<NoteEvent> notes) {
 
 void PlaybackScheduler::reset() {
     std::fill(active_.begin(), active_.end(), static_cast<char>(0));
+    pendingReleases_.clear();
     events_.clear();
     wasPlaying_ = false;
     expectedStartTick_ = 0.0;
@@ -33,6 +37,12 @@ const std::vector<ScheduledEvent>& PlaybackScheduler::process(const TransportBlo
     const bool valid = tb.numSamples > 0 && std::isfinite(tb.sampleRate) && tb.sampleRate > 0.0 &&
                        std::isfinite(tb.bpm) && tb.bpm > 0.0 && std::isfinite(tb.ppqStart);
     if (!valid) return events_;
+
+    // Notes orphaned by a note-list swap are released first, whatever the transport is doing.
+    for (const auto& release : pendingReleases_) {
+        events_.push_back(ScheduledEvent{0, false, release.pitch, 0, release.channel});
+    }
+    pendingReleases_.clear();
 
     auto emit = [this](int offset, bool on, const NoteEvent& n) {
         events_.push_back(ScheduledEvent{offset, on, n.pitch, on ? n.velocity : 0, n.channel});

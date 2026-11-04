@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -29,5 +30,13 @@ struct ParseResult {
 ///
 /// Not yet supported (later milestones): ninths, alterations, secondary chords.
 ParseResult parseRomanNumeral(std::string_view text);
+
+/// The inverse of parseRomanNumeral(): the canonical symbol for a chord, e.g. "V65", "bVII", "vii\xC3\xB8" "7",
+/// "I64sus4". Returns std::nullopt for an invalid chord and for chords the grammar cannot express:
+///   - a suspension combined with a diminished or augmented quality,
+///   - a diminished seventh on a major, minor or augmented chord,
+///   - an inverted major-seventh chord.
+/// For every other chord, parseRomanNumeral(*formatRomanNumeral(c)).chord == c.
+std::optional<std::string> formatRomanNumeral(const ChordSpec& chord);
 
 }  // namespace chordcore

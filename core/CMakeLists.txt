@@ -5,6 +5,9 @@ add_library(chordcore STATIC
     src/Progression.cpp
     src/NoteEngine.cpp
     src/Scheduler.cpp
+    src/Serialization.cpp
+    src/Document.cpp
+    src/ProgressionText.cpp
     src/MidiFile.cpp)
 
 target_include_directories(chordcore PUBLIC include)

@@ -18,7 +18,8 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Windows / MSVC build of the VST3 | **Built in CI** (GitHub Actions `windows-latest`, MSVC, Release, 0 warnings); all 66 tests pass on Windows | Actions run for commit `584208d`. The `.vst3` was built but never loaded in a host |
 | Loads in Ableton Live | **Loads and opens** (user-reported on Live 12.4.16, the target version, commit `45d87de`). "Export MIDI..." button works (user-reported). Exported `.mid` imports with correct chords, timing, tempo and octave (user-reported) | manual checklist below |
 | Live MIDI output from `processBlock`, synced to the host transport | Core scheduler **unit-tested** (81 tests incl. start, stop, locate, loop, tempo, exact sample positions, agreement with the exported file); plugin wiring **syntax-checked only** | **Works in Live 12.4.16** (user-reported: MIDI routed to another track plays correctly). Checklist below |
-| State persistence, undo/redo, timeline UI, drag-out of `.mid` | Not implemented (milestones 4, 6, 7) | |
+| Project state: versioned JSON save/restore, undo/redo (snapshot history with coalescing), chord-text entry | Core **unit-tested** (117 tests total with g++ Debug and clang Release, `-Werror`; mutation-checked: 8 injected bugs all caught). Plugin wiring (host save/load, thread hand-over, editor) **syntax-checked only until CI builds it** | **Not yet tried in Live**: checklist for milestone 4 below |
+| Timeline UI, drag-out of `.mid` | Not implemented (milestones 6, 7) | |
 
 ## Layout
 
@@ -81,6 +82,13 @@ ctest --test-dir build --output-on-failure
 - `python_verifies_demo_mid` runs `export_demo`, then `tests/python/verify_midi.py` re-reads the file
   with a separate stdlib-only parser and hand-written expectations. If the third-party `mido`
   package is installed it also loads the file with it.
+- Milestone 4: `test_serialization` (golden JSON pinning the on-disk format, exact round trips including
+  tempos with no short decimal form, 300 random progressions, dozens of hostile inputs: truncation, wrong
+  format/version, bad enums, overlaps, duplicate keys, nesting bombs, binary junk, 2000 single-byte
+  corruptions), `test_document` (undo/redo, coalescing, rejected edits change nothing, bounded history,
+  randomised undo-everything/redo-everything), `test_progressiontext` (chord line parser/formatter and the
+  Roman numeral formatter as an exact inverse of the parser, exhaustively), and scheduler tests for editing
+  while notes are sounding.
 - The suite was mutation-checked once: five deliberately injected bugs (note-on/off order, length,
   inversion, tempo rounding, key-signature wrap) were each caught.
 
@@ -123,6 +131,27 @@ that tells us whether Live exposes the plugin's MIDI output, which is the main o
 Known limitations: the progression is fixed (the demo); it plays against the host's bar 1 regardless of the
 project's time signature; a loop wrap is noticed one audio block late, so notes ending exactly at the loop end
 may release up to one block late.
+
+## Manual test checklist: milestone 4, state and undo/redo (Ableton Live 12.4.16, Windows) — not yet run
+
+Install the new build (replace `C:\Program Files\Common Files\VST3\ChordSketch.vst3`, Live closed).
+
+1. Open the plugin window. Expect a chord line `I V vi IV`, key C major, tempo 120, "4 chords, ... notes".
+2. Click into the chord line and type, e.g. `I vi IV V7:2`, then press **Enter** or click **Apply**.
+   *If typed keys do not arrive at all inside Live, tell me: it is the main open risk of text entry in a
+   plugin window. The Key, Tempo, Undo and Redo controls do not need the keyboard.*
+3. Play from bar 1: the new chords play (key and tempo changes take effect on the next play or immediately
+   while playing; notes sounding during an edit are released, not stuck).
+4. Change **Key** to D minor and drag the **Tempo** slider. Press **Undo** once: the whole tempo drag reverts
+   in one step. Undo again: the key reverts. **Redo** reapplies.
+5. Type nonsense such as `I X V` and Apply: the status line explains and nothing changes.
+6. **Save the Live set, close it, reopen it.** The plugin must show the same chords, key and tempo, and play
+   them. Undo is empty after reload (history is not saved by design).
+7. Duplicate the track: the copy must carry the same progression. Edit one copy: the other must not change.
+8. Delete the plugin and add a fresh one: it starts with the demo progression.
+
+Not covered here: saved states from other versions (only version 1 exists); a newer file in an older
+plugin is refused with a message and the current project is kept.
 
 ## Licensing
 
