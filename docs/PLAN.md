@@ -88,6 +88,9 @@ Advanced features (M2+) are intentionally not started until M1's export has been
   output via another track's "MIDI From" ([Ableton help](https://help.ableton.com/hc/en-us/articles/209070189-Accessing-the-MIDI-output-of-a-VST-plug-in);
   that article does not mention VST3 specifically). M1 declares the plugin as `IS_SYNTH` +
   `NEEDS_MIDI_OUTPUT`; this must be confirmed in Live.
+  **Confirmed by test (Live 12.4.16, 2026-11-04):** Live rejects an instrument without a MIDI input bus
+  ("plugin has instrument category, but no valid event input bus"), so `NEEDS_MIDI_INPUT TRUE` /
+  `acceptsMidi() == true` are required. pluginval does not check this rule.
 - **Minor-key numeral convention.** M1 interprets numerals against the key's own scale (natural
   minor for minor keys, so `III`, `VI`, `VII` are the scale's own degrees; `bVII` lowers further).
   Hookpad-style tools may use another convention. Decide before M5.

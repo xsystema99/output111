@@ -31,7 +31,7 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return "ChordSketch"; }
-    bool acceptsMidi() const override { return false; }
+    bool acceptsMidi() const override { return true; }  // Live requires an event input bus on instruments
     bool producesMidi() const override { return true; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }

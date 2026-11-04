@@ -29,7 +29,9 @@ juce_add_plugin(ChordSketch
     # instrument that produces MIDI (route its output with another track's "MIDI From"). To be confirmed in Live.
     IS_SYNTH TRUE
     IS_MIDI_EFFECT FALSE
-    NEEDS_MIDI_INPUT FALSE
+    # Live refuses an instrument that has no MIDI (event) input bus ("plugin has instrument category,
+    # but no valid event input bus"), so the input bus must exist even though M1 does not use it.
+    NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD FALSE)
