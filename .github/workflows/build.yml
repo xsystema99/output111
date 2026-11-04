@@ -1,5 +1,4 @@
-# NOT YET RUN. This workflow was written on a Linux machine with no access to GitHub Actions or
-# Windows; treat the first run as the first real test of the Windows build.
+# First run: Linux jobs passed; the Windows job failed at configure (hardcoded VS 2022 generator), now fixed.
 name: build
 
 on:
@@ -14,7 +13,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure (MSVC, plugin + tests + tools)
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DHC_WARNINGS_AS_ERRORS=ON
+        # No -G: CMake picks the newest Visual Studio installed on the runner (the image changes over time).
+        run: cmake -S . -B build -A x64 -DHC_WARNINGS_AS_ERRORS=ON
 
       - name: Build (Release)
         run: cmake --build build --config Release --parallel

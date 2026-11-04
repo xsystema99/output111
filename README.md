@@ -35,14 +35,14 @@ transport playback will use the same output later.
 
 ## Build on Windows
 
-Requirements: Windows 10/11, Visual Studio 2022 with the "Desktop development with C++" workload
+Requirements: Windows 10/11, Visual Studio 2022 or newer with the "Desktop development with C++" workload
 (includes CMake), Git, internet access on first configure (CMake downloads JUCE and Catch2).
 Python 3 is optional (enables one extra test).
 
 ```bat
 git clone <this repo> chord-sketch
 cd chord-sketch
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake -S . -B build -A x64
 cmake --build build --config Release --parallel
 ctest --test-dir build -C Release --output-on-failure
 ```
