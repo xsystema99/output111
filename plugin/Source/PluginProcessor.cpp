@@ -44,8 +44,8 @@ void ChordSketchProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     block.bpm = progression.tempoBpm;  // fallback only: the host tempo is used whenever it is provided
 
     // Without a host position there is nothing to synchronise to, so the block is treated as stopped.
-    if (auto* playHead = getPlayHead()) {
-        if (const auto position = playHead->getPosition()) {
+    if (auto* hostPlayHead = getPlayHead()) {
+        if (const auto position = hostPlayHead->getPosition()) {
             const auto ppq = position->getPpqPosition();
             if (ppq.hasValue()) {
                 block.playing = position->getIsPlaying();
