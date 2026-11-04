@@ -3,7 +3,7 @@
 A Hookpad-inspired chord sequencer, built as a Windows VST3 plugin (C++17, JUCE, CMake). Primary
 host: Ableton Live 12.4.16. "ChordSketch" is a placeholder name.
 
-**Status: milestone 1 complete (verified in Ableton Live 12.4.16 by the user); milestone 3 (live MIDI output) implemented and unit-tested, not yet tried in Live.** MIDI export comes first; the timeline UI and live playback come later.
+**Status: milestone 1 complete (verified in Ableton Live 12.4.16 by the user); milestone 3 (live MIDI output synced to the transport) also complete and confirmed working in Live by the user.** MIDI export comes first; the timeline UI and live playback come later.
 See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 
 ## What works today, and how it was checked
@@ -17,7 +17,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Plugin sources compile against JUCE 8.0.17 headers | **Syntax-only check on Linux** | not a link, not a Windows build |
 | Windows / MSVC build of the VST3 | **Built in CI** (GitHub Actions `windows-latest`, MSVC, Release, 0 warnings); all 66 tests pass on Windows | Actions run for commit `584208d`. The `.vst3` was built but never loaded in a host |
 | Loads in Ableton Live | **Loads and opens** (user-reported on Live 12.4.16, the target version, commit `45d87de`). "Export MIDI..." button works (user-reported). Exported `.mid` imports with correct chords, timing, tempo and octave (user-reported) | manual checklist below |
-| Live MIDI output from `processBlock`, synced to the host transport | Core scheduler **unit-tested** (81 tests incl. start, stop, locate, loop, tempo, exact sample positions, agreement with the exported file); plugin wiring **syntax-checked only** | not yet run in Live: see the milestone 3 checklist below |
+| Live MIDI output from `processBlock`, synced to the host transport | Core scheduler **unit-tested** (81 tests incl. start, stop, locate, loop, tempo, exact sample positions, agreement with the exported file); plugin wiring **syntax-checked only** | **Works in Live 12.4.16** (user-reported: MIDI routed to another track plays correctly). Checklist below |
 | State persistence, undo/redo, timeline UI, drag-out of `.mid` | Not implemented (milestones 4, 6, 7) | |
 
 ## Layout
@@ -103,7 +103,7 @@ Known Live behaviour: Live has no slot for third-party VST3 MIDI effects, so a p
 MIDI is loaded as an instrument and its MIDI output is picked up through another track's
 "MIDI From" setting. Milestone 3 will need to confirm this in practice.
 
-## Manual test checklist: milestone 3, live MIDI output (Ableton Live 12.4.16) — not yet run
+## Manual test checklist: milestone 3, live MIDI output (Ableton Live 12.4.16) — user reports it works perfectly
 
 The plugin makes no sound; it outputs MIDI, and Live must route that MIDI to another track.
 

@@ -79,7 +79,7 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 | Plugin CMake target (`juce_add_plugin`) configures | Arguments cross-checked by reading JUCE's CMake API docs and example only | **Not executed** (configure stops in `juceaide`, missing X11 headers). One real defect found on the way: `project()` lacked the `C` language JUCE requires (fixed) |
 | Scheduler: exact sample positions, stop/locate/loop, mid-chord start, tempo, stuck-note protection, agreement with exported file | 15 scheduler tests incl. a 200-iteration random-transport property test | **Passed**, Linux (g++) |
 | Scheduler tests can actually fail | Six injected bugs (off/on order, no release on stop, no jump detection, truncated rounding, ignored tempo, no mid-chord start) | **All six caught** |
-| Plugin `processBlock` wiring | `-fsyntax-only` against JUCE 8.0.17 headers; CI build | See CI. **Not yet run in Live** |
+| Plugin `processBlock` wiring | `-fsyntax-only` against JUCE 8.0.17 headers; CI build; manual test in Live | **Passed** in CI (commit `6c063d0`); **works in Live 12.4.16** (user-reported). Confirms an instrument-type VST3 can send MIDI to another track via "MIDI From" |
 | Compiles on Windows / MSVC | `.github/workflows/build.yml` on GitHub Actions `windows-latest` | **Passed** (commit `584208d`): plugin builds, 66/66 tests pass, 0 MSVC warnings. First run failed only because the workflow hardcoded the VS 2022 generator (fixed) |
 | Loads in Ableton Live | Manual checklist in README | **Loads** on Live 12.4.16 (user-reported, commit `45d87de`) after fixing the missing MIDI input bus. Target version is 12.4.16 |
 | `.mid` imports correctly into Live | Manual: drag `demo.mid` into a MIDI track | **Not yet run** |
