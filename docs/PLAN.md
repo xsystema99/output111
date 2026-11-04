@@ -1,6 +1,6 @@
 # ChordSketch — Technical Implementation Plan
 
-A Hookpad-inspired VST3 chord sequencer (C++17, JUCE, CMake). Primary host: Ableton Live 12.2 on Windows.
+A Hookpad-inspired VST3 chord sequencer (C++17, JUCE, CMake). Primary host: Ableton Live 12.4.16 on Windows.
 "ChordSketch" is a placeholder name; it deliberately avoids the Hookpad trademark.
 
 ## 1. Environment findings (where this plan was written)
@@ -61,7 +61,7 @@ Key rules:
 | M4 | State persistence (versioned serialisation, ValueTree/JSON), undo/redo | Round-trip tests |
 | M5 | Extended harmony: 9ths, alterations, secondary dominants, minor-key convention options | Theory tests per chord type |
 | M6 | Timeline UI: draggable/resizable chord blocks, snapping, Roman numeral entry | UI is a thin layer over the model |
-| M7 | Native file drag-out from the plugin (`performExternalDragDropOfFiles`), Ableton verification | Manual test in Live 12.2 |
+| M7 | Native file drag-out from the plugin (`performExternalDragDropOfFiles`), Ableton verification | Manual test in Live 12.4.16 |
 
 Advanced features (M2+) are intentionally not started until M1's export has been independently checked.
 
@@ -78,7 +78,7 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 | Plugin source compiles with JUCE | `g++ -fsyntax-only` of both plugin `.cpp` files against JUCE 8.0.17 headers, plus a negative control | **Passed (syntax only)**. Not linked, not run, not a Windows result |
 | Plugin CMake target (`juce_add_plugin`) configures | Arguments cross-checked by reading JUCE's CMake API docs and example only | **Not executed** (configure stops in `juceaide`, missing X11 headers). One real defect found on the way: `project()` lacked the `C` language JUCE requires (fixed) |
 | Compiles on Windows / MSVC | `.github/workflows/build.yml` on GitHub Actions `windows-latest` | **Passed** (commit `584208d`): plugin builds, 66/66 tests pass, 0 MSVC warnings. First run failed only because the workflow hardcoded the VS 2022 generator (fixed) |
-| Loads in Ableton Live | Manual checklist in README | **Loads** on Live 12.4.16 (user-reported, commit `45d87de`) after fixing the missing MIDI input bus. Not tested on 12.2 |
+| Loads in Ableton Live | Manual checklist in README | **Loads** on Live 12.4.16 (user-reported, commit `45d87de`) after fixing the missing MIDI input bus. Target version is 12.4.16 |
 | `.mid` imports correctly into Live | Manual: drag `demo.mid` into a MIDI track | **Not yet run** |
 
 ## 5. Risks and open decisions

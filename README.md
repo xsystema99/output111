@@ -1,7 +1,7 @@
 # ChordSketch
 
 A Hookpad-inspired chord sequencer, built as a Windows VST3 plugin (C++17, JUCE, CMake). Primary
-host: Ableton Live 12.2. "ChordSketch" is a placeholder name.
+host: Ableton Live 12.4.16. "ChordSketch" is a placeholder name.
 
 **Status: milestone 1 complete (verified in Ableton Live 12.4.16 by the user).** MIDI export comes first; the timeline UI and live playback come later.
 See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
@@ -16,7 +16,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Core builds with `-Werror` | Verified with g++ 13 and clang 18 (locally and in CI) | local build, Actions |
 | Plugin sources compile against JUCE 8.0.17 headers | **Syntax-only check on Linux** | not a link, not a Windows build |
 | Windows / MSVC build of the VST3 | **Built in CI** (GitHub Actions `windows-latest`, MSVC, Release, 0 warnings); all 66 tests pass on Windows | Actions run for commit `584208d`. The `.vst3` was built but never loaded in a host |
-| Loads in Ableton Live | **Loads and opens** (reported by the user on Live 12.4.16, commit `45d87de`). "Export MIDI..." button works (user-reported). Exported `.mid` imports with the correct chords (user-reported; timing, tempo and octave not itemised) | manual checklist below |
+| Loads in Ableton Live | **Loads and opens** (user-reported on Live 12.4.16, the target version, commit `45d87de`). "Export MIDI..." button works (user-reported). Exported `.mid` imports with correct chords, timing, tempo and octave (user-reported) | manual checklist below |
 | Live MIDI output from `processBlock` | Not implemented (milestone 3) | |
 | State persistence, undo/redo, timeline UI, drag-out of `.mid` | Not implemented (milestones 4, 6, 7) | |
 
@@ -84,7 +84,7 @@ ctest --test-dir build --output-on-failure
 - The suite was mutation-checked once: five deliberately injected bugs (note-on/off order, length,
   inversion, tempo rounding, key-signature wrap) were each caught.
 
-## Manual test checklist (Ableton Live 12.2, Windows) — not yet run
+## Manual test checklist (Ableton Live 12.4.16, Windows) — steps 1-4 done, 5-6 not yet reported
 
 Do the MIDI-file steps first; they need no plugin.
 
