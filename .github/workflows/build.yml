@@ -22,11 +22,30 @@ jobs:
       - name: Test core
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: Show bundle layout and DLL dependencies
+        shell: pwsh
+        run: |
+          $bundle = "build/plugin/ChordSketch_artefacts/Release/VST3/ChordSketch.vst3"
+          Get-ChildItem -Recurse $bundle | Select-Object FullName, Length | Format-Table -AutoSize -Wrap
+          python -m pip install --quiet pefile
+          python -c "import pefile,sys; pe=pefile.PE(sys.argv[1]); print('machine:', hex(pe.FILE_HEADER.Machine), '(0x8664 = x64)'); print('imports:'); [print('  ', e.dll.decode()) for e in pe.DIRECTORY_ENTRY_IMPORT]; print('exports:', [s.name.decode() for s in pe.DIRECTORY_ENTRY_EXPORT.symbols if s.name])" "$bundle/Contents/x86_64-win/ChordSketch.vst3"
+
+      - name: Validate plugin loads (pluginval)
+        # Diagnostic: loads the VST3 in a validator and prints why it fails, if it does.
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pv.zip
+          Expand-Archive pv.zip pv
+          ./pv/pluginval.exe --strictness-level 5 --validate-in-process --skip-gui-tests "build/plugin/ChordSketch_artefacts/Release/VST3/ChordSketch.vst3"
+
       - name: Upload VST3 bundle
+        # Upload the parent folder so the zip keeps the top-level "ChordSketch.vst3" folder name,
+        # which hosts require. Unzip it and copy the ChordSketch.vst3 FOLDER into the VST3 directory.
         uses: actions/upload-artifact@v4
         with:
           name: ChordSketch-vst3-windows
-          path: build/plugin/ChordSketch_artefacts/Release/VST3/ChordSketch.vst3
+          path: build/plugin/ChordSketch_artefacts/Release/VST3
           if-no-files-found: error
 
       - name: Upload demo MIDI written by the CLI
