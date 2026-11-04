@@ -21,7 +21,7 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p) : juce::AudioProce
     summaryLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(summaryLabel);
 
-    statusLabel.setText("Demo progression (C major, I - V - vi - IV).", juce::dontSendNotification);
+    statusLabel.setText("Demo progression (C major, I - V - vi - IV).\nPlays from bar 1, in sync with the transport.", juce::dontSendNotification);
     statusLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(statusLabel);
 

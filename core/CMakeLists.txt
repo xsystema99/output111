@@ -4,6 +4,7 @@ add_library(chordcore STATIC
     src/RomanNumeral.cpp
     src/Progression.cpp
     src/NoteEngine.cpp
+    src/Scheduler.cpp
     src/MidiFile.cpp)
 
 target_include_directories(chordcore PUBLIC include)

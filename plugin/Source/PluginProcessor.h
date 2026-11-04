@@ -3,12 +3,17 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <chordcore/Progression.h>
+#include <chordcore/Scheduler.h>
 
 /// Thin JUCE adapter around chordcore. No music logic lives here.
 ///
-/// Milestone 1 scope: holds the demo progression and exposes MIDI-file export. It does NOT yet
-/// emit MIDI from processBlock (transport-synchronised playback is milestone 3) and does not yet
-/// persist state (milestone 4).
+/// Scope so far: holds the demo progression, exposes MIDI-file export (milestone 1) and plays the
+/// progression as MIDI output in sync with the host transport (milestone 3). It does not yet persist
+/// state (milestone 4).
+///
+/// Threading: the progression and the scheduler's note list are built once in the constructor and
+/// only read afterwards. When editing arrives (milestones 4 and 6) the note list will have to be
+/// swapped into the audio thread safely; do not mutate it from the message thread before then.
 class ChordSketchProcessor final : public juce::AudioProcessor {
 public:
     ChordSketchProcessor();
@@ -47,6 +52,8 @@ public:
 
 private:
     chordcore::Progression progression;
+    chordcore::PlaybackScheduler scheduler;
+    double currentSampleRate = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChordSketchProcessor)
 };

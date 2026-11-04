@@ -57,7 +57,7 @@ Key rules:
 |---|---|---|
 | **M1 (this)** | Core types, theory (triads, sevenths, inversions, major/minor keys), basic Roman numeral parser, sus2/sus4 (added after M1 sign-off request), 4-chord model, note engine, SMF export, CLI demo, unit tests, minimal JUCE shell with "Export MIDI…" button | Core tests pass; `.mid` validated independently (byte parser + mido); plugin compiles on Windows; loads in Live |
 | M2 | Range/selection export (clip + shift ticks), optional Format 1, tempo map | Tests for clipped notes and range offsets |
-| M3 | Transport-synchronised MIDI output in `processBlock` from the same `NoteEvent` list (sample-accurate offsets, loop/jump/stop handling, stuck-note protection) | Scheduler unit tests with synthetic playheads; manual Live test |
+| M3 (**implemented**) | Transport-synchronised MIDI output in `processBlock` from the same `NoteEvent` list (sample-accurate offsets, loop/jump/stop handling, stuck-note protection) | Scheduler unit tests with synthetic playheads; manual Live test |
 | M4 | State persistence (versioned serialisation, ValueTree/JSON), undo/redo | Round-trip tests |
 | M5 | Extended harmony: 9ths, alterations, secondary dominants, minor-key convention options | Theory tests per chord type |
 | M6 | Timeline UI: draggable/resizable chord blocks, snapping, Roman numeral entry | UI is a thin layer over the model |
@@ -77,9 +77,24 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 | `.mid` read by a genuinely third-party library | `mido` (optional branch in the same script) | **Not run**: `mido` could not be installed here |
 | Plugin source compiles with JUCE | `g++ -fsyntax-only` of both plugin `.cpp` files against JUCE 8.0.17 headers, plus a negative control | **Passed (syntax only)**. Not linked, not run, not a Windows result |
 | Plugin CMake target (`juce_add_plugin`) configures | Arguments cross-checked by reading JUCE's CMake API docs and example only | **Not executed** (configure stops in `juceaide`, missing X11 headers). One real defect found on the way: `project()` lacked the `C` language JUCE requires (fixed) |
+| Scheduler: exact sample positions, stop/locate/loop, mid-chord start, tempo, stuck-note protection, agreement with exported file | 15 scheduler tests incl. a 200-iteration random-transport property test | **Passed**, Linux (g++) |
+| Scheduler tests can actually fail | Six injected bugs (off/on order, no release on stop, no jump detection, truncated rounding, ignored tempo, no mid-chord start) | **All six caught** |
+| Plugin `processBlock` wiring | `-fsyntax-only` against JUCE 8.0.17 headers; CI build | See CI. **Not yet run in Live** |
 | Compiles on Windows / MSVC | `.github/workflows/build.yml` on GitHub Actions `windows-latest` | **Passed** (commit `584208d`): plugin builds, 66/66 tests pass, 0 MSVC warnings. First run failed only because the workflow hardcoded the VS 2022 generator (fixed) |
 | Loads in Ableton Live | Manual checklist in README | **Loads** on Live 12.4.16 (user-reported, commit `45d87de`) after fixing the missing MIDI input bus. Target version is 12.4.16 |
 | `.mid` imports correctly into Live | Manual: drag `demo.mid` into a MIDI track | **Not yet run** |
+
+## 4b. Milestone 3 design notes
+
+- `PlaybackScheduler` (core, JUCE-free) consumes the same `NoteEvent` list as the file export. The plugin
+  only reads the host playhead (running, ppq, bpm) and copies events into the `MidiBuffer`.
+- Each sample owns the ticks within half a sample either side; consecutive blocks chain their tick windows
+  exactly, so each tick belongs to exactly one block (found by testing: an earlier version played a note one
+  sample early when floating-point noise put a bar-line tick in the previous block).
+- Locate, loop wrap and start are detected as position discontinuities; sounding notes are released first and
+  any note sounding at the new position starts immediately.
+- No allocation in `process()`; `setNotes()` pre-sizes everything. Editing (M4/M6) will need a safe hand-over
+  of a new note list to the audio thread.
 
 ## 5. Risks and open decisions
 
