@@ -49,12 +49,12 @@ void ChordSketchEditor::exportMidiClicked() {
         juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("ChordSketch-demo.mid");
 
     fileChooser = std::make_unique<juce::FileChooser>("Export MIDI file", defaultFile, "*.mid");
-    const auto flags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
+    const auto chooserFlags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
                        juce::FileBrowserComponent::warnAboutOverwriting;
 
     // SafePointer: the host may close the editor while the dialog is open.
     juce::Component::SafePointer<ChordSketchEditor> safeThis(this);
-    fileChooser->launchAsync(flags, [safeThis](const juce::FileChooser& chooser) {
+    fileChooser->launchAsync(chooserFlags, [safeThis](const juce::FileChooser& chooser) {
         if (safeThis == nullptr) return;
         auto file = chooser.getResult();
         if (file == juce::File()) return;  // cancelled
