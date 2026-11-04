@@ -13,9 +13,9 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Four-chord progression model (I–V–vi–IV, C major) | Done | unit tests |
 | Chords → MIDI notes (triads, sevenths, inversions, sus2/sus4, major/minor keys, Roman numeral parsing) | Done | unit tests, hand-computed pitches |
 | Standard MIDI File export (tempo, time signature, key signature, note lengths, tick placement) | Done | golden bytes, independent C++ parser, independent Python parser, seeded property test |
-| Core builds with `-Werror` | Verified on Linux with g++ 13 and clang 18 | local build |
+| Core builds with `-Werror` | Verified with g++ 13 and clang 18 (locally and in CI) | local build, Actions |
 | Plugin sources compile against JUCE 8.0.17 headers | **Syntax-only check on Linux** | not a link, not a Windows build |
-| Windows / MSVC build of the VST3 | **Not yet built** | needs a Windows machine or the CI workflow |
+| Windows / MSVC build of the VST3 | **Built in CI** (GitHub Actions `windows-latest`, MSVC, Release, 0 warnings); all 66 tests pass on Windows | Actions run for commit `584208d`. The `.vst3` was built but never loaded in a host |
 | Loads in Ableton Live 12.2 | **Not yet tested** | manual checklist below |
 | Live MIDI output from `processBlock` | Not implemented (milestone 3) | |
 | State persistence, undo/redo, timeline UI, drag-out of `.mid` | Not implemented (milestones 4, 6, 7) | |
