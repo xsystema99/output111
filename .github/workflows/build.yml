@@ -1,0 +1,51 @@
+# NOT YET RUN. This workflow was written on a Linux machine with no access to GitHub Actions or
+# Windows; treat the first run as the first real test of the Windows build.
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows-vst3:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (MSVC, plugin + tests + tools)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DHC_WARNINGS_AS_ERRORS=ON
+
+      - name: Build (Release)
+        run: cmake --build build --config Release --parallel
+
+      - name: Test core
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Upload VST3 bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChordSketch-vst3-windows
+          path: build/plugin/ChordSketch_artefacts/Release/VST3/ChordSketch.vst3
+          if-no-files-found: error
+
+      - name: Upload demo MIDI written by the CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-mid
+          path: build/tests/demo.mid
+
+  linux-core:
+    # Core library + unit tests only (no JUCE, so no X11/ALSA packages needed).
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DHC_BUILD_PLUGIN=OFF -DHC_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
