@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "PluginEditor.h"
 
@@ -20,6 +21,7 @@ ChordSketchProcessor::ChordSketchProcessor()
 void ChordSketchProcessor::rebuildPlaybackLocked() {
     const auto& current = document.progression();
     fallbackTempo.store(current.tempoBpm);
+    loopLengthPpq.store(static_cast<double>(current.lengthTicks()) / static_cast<double>(chordcore::kTicksPerQuarter));
     previewEndPpq.store(static_cast<double>(std::max(current.endTick(), current.melodyEndTick())) / static_cast<double>(chordcore::kTicksPerQuarter));
 
     std::vector<chordcore::NoteEvent> notes;
@@ -33,6 +35,8 @@ void ChordSketchProcessor::rebuildPlaybackLocked() {
     // the duration of the swap (the audio thread try-locks and skips the block).
     const juce::SpinLock::ScopedLockType lock(schedulerLock);
     scheduler.setNotes(std::move(notes));
+    // The pattern repeats for as long as the host plays (a transport started at bar 65 still plays the sequence).
+    scheduler.setLoopLength(current.lengthTicks());
 }
 
 ChordSketchProcessor::Playhead ChordSketchProcessor::getPlayhead() const noexcept {
@@ -210,7 +214,10 @@ void ChordSketchProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     previewRunning.store(preview.running());
     const chordcore::TransportBlock& used = step.overrides ? step.block : block;
 
-    playheadPpq.store(used.ppqStart, std::memory_order_relaxed);
+    double shownPpq = used.ppqStart;  // the playhead shows the position inside the looping pattern
+    const double loopPpq = loopLengthPpq.load(std::memory_order_relaxed);
+    if (!step.overrides && used.playing && loopPpq > 0.0 && shownPpq >= 0.0) shownPpq = std::fmod(shownPpq, loopPpq);
+    playheadPpq.store(shownPpq, std::memory_order_relaxed);
     playheadPlaying.store(used.playing, std::memory_order_relaxed);
     playheadValid.store(havePosition || step.overrides, std::memory_order_relaxed);
 

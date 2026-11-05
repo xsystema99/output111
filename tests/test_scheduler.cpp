@@ -467,3 +467,106 @@ TEST_CASE("scheduler: after a swap the new notes start cleanly from the transpor
     std::sort(expected.begin(), expected.end());
     CHECK(started == expected);
 }
+
+TEST_CASE("scheduler loop: a transport started far past the pattern (bar 65) still plays it", "[scheduler][loop]") {
+    const Progression p = makeDemoProgression();  // 4 bars of 4/4, I V vi IV
+    const auto notes = generateNotes(p);
+    const Tick loop = p.lengthTicks();
+    REQUIRE(loop == 4 * 3840);
+
+    PlaybackScheduler scheduler;
+    scheduler.setNotes(notes);
+    scheduler.setLoopLength(loop);
+
+    TransportBlock tb;
+    tb.playing = true;
+    tb.bpm = 120.0;
+    tb.sampleRate = 48000.0;
+    tb.numSamples = 512;
+    tb.ppqStart = 64.0 * 4.0;  // bar 65 starts at quarter note 256
+    const auto& events = scheduler.process(tb);
+    int ons = 0;
+    for (const auto& e : events) ons += e.noteOn ? 1 : 0;
+    CHECK(ons == 3);  // the first chord (a triad) starts immediately
+
+    // Without the loop the same position is silent (the old behaviour this fixes).
+    PlaybackScheduler plain;
+    plain.setNotes(notes);
+    CHECK(plain.process(tb).empty());
+
+    // Starting mid-pattern in a later repeat: bar 66 beat 1 is the second chord of the pattern.
+    PlaybackScheduler other;
+    other.setNotes(notes);
+    other.setLoopLength(loop);
+    tb.ppqStart = 65.0 * 4.0;
+    int onsSecond = 0;
+    for (const auto& e : other.process(tb)) onsSecond += e.noteOn ? 1 : 0;
+    CHECK(onsSecond == 3);
+}
+
+TEST_CASE("scheduler loop: continuous blocks across the wrap equal two passes, sample-accurate, at any block size", "[scheduler][loop]") {
+    const Progression p = makeDemoProgression();
+    const auto notes = generateNotes(p);
+    const Tick loop = p.lengthTicks();
+    const double bpm = 133.0, sr = 44100.0;
+    const double samplesPerLoop = static_cast<double>(loop) / kTicksPerQuarter * 60.0 / bpm * sr;
+
+    for (int blockSize : {64, 480, 1000, 4096}) {
+        PlaybackScheduler scheduler;
+        scheduler.setNotes(notes);
+        scheduler.setLoopLength(loop);
+        std::vector<long long> onSamples;
+        const long long total = static_cast<long long>(samplesPerLoop * 2.0) + 2000;
+        for (long long pos = 0; pos < total; pos += blockSize) {
+            TransportBlock tb;
+            tb.playing = true;
+            tb.bpm = bpm;
+            tb.sampleRate = sr;
+            tb.numSamples = blockSize;
+            tb.ppqStart = static_cast<double>(pos) * bpm / (60.0 * sr);
+            for (const auto& e : scheduler.process(tb)) {
+                REQUIRE(e.sampleOffset >= 0);
+                REQUIRE(e.sampleOffset < blockSize);
+                if (e.noteOn) onSamples.push_back(pos + e.sampleOffset);
+            }
+        }
+        // 4 chords x 3 notes per pass, two full passes (+ the first chord of the third pass if it fits)
+        INFO("block " << blockSize);
+        REQUIRE(onSamples.size() >= 24);
+        for (int pass = 0; pass < 2; ++pass) {
+            for (std::size_t i = 0; i < notes.size(); ++i) {
+                const double tick = static_cast<double>(notes[i].startTick) + pass * static_cast<double>(loop);
+                const long long expected = expectedSample(tick, bpm, sr);
+                const long long got = onSamples[static_cast<std::size_t>(pass) * notes.size() + i];
+                CHECK(std::llabs(got - expected) <= 1);
+            }
+        }
+    }
+}
+
+TEST_CASE("scheduler loop: tempo changes between blocks are followed and the transport stop releases notes", "[scheduler][loop]") {
+    const Progression p = makeDemoProgression();
+    PlaybackScheduler scheduler;
+    scheduler.setNotes(generateNotes(p));
+    scheduler.setLoopLength(p.lengthTicks());
+
+    // A note starts at tick 0 of the pattern; at 60 BPM the block of 48000 samples is exactly one quarter note.
+    TransportBlock tb;
+    tb.playing = true;
+    tb.sampleRate = 48000.0;
+    tb.numSamples = 48000;
+    tb.bpm = 60.0;
+    tb.ppqStart = 0.0;
+    scheduler.process(tb);
+    CHECK(scheduler.activeNoteCount() == 3);
+    tb.ppqStart = 1.0;
+    tb.bpm = 240.0;  // host tempo changed
+    scheduler.process(tb);  // 48000 samples at 240 BPM = 4 quarter notes: still inside the first bar
+    CHECK(scheduler.activeNoteCount() == 3);
+    tb.playing = false;
+    tb.ppqStart = 5.0;
+    int offs = 0;
+    for (const auto& e : scheduler.process(tb)) offs += e.noteOn ? 0 : 1;
+    CHECK(offs == 3);
+    CHECK(scheduler.activeNoteCount() == 0);
+}

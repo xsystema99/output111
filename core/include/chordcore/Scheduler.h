@@ -55,6 +55,12 @@ public:
     /// changed chord sounds immediately.
     void setNotes(std::vector<NoteEvent> notes);
 
+    /// Loop length in ticks (0 = off). When set, the host position is folded into [0, loopTicks): after the pattern's
+    /// last bar the sequence repeats, so it plays wherever the host transport is (bar 65 included), and a block that
+    /// crosses the pattern end is split so the wrap is sample-accurate. Negative host positions (count-in) are not folded.
+    /// Call off the audio thread (it reserves the event buffer).
+    void setLoopLength(Tick loopTicks);
+
     /// Forgets sounding and orphaned notes WITHOUT emitting note-offs (use when the host re-initialises the plugin).
     void reset();
 
@@ -67,6 +73,10 @@ public:
     std::size_t activeNoteCount() const;
 
 private:
+    const std::vector<ScheduledEvent>& processSegment(const TransportBlock& block);
+
+    Tick loopTicks_ = 0;
+    std::vector<ScheduledEvent> loopEvents_;
     std::vector<NoteEvent> notes_;
     std::vector<char> active_;
     std::vector<ScheduledEvent> events_;

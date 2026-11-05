@@ -303,3 +303,9 @@ Not built: Chord Density and Chromatic Dice do not exist in this project, so the
 JUCE is dual-licensed (AGPLv3 / commercial). Distributing a plugin built with JUCE requires either
 releasing it under a compatible open-source licence or holding a JUCE commercial licence. Check
 <https://juce.com/legal/juce-8-licence/> (and JUCE's `LICENSE.md`) before distributing binaries. This repository has no licence file yet.
+
+### Manual check: playback follows the host (transport loop)
+1. Put the plugin on a MIDI track (instrument after it), 4-bar default pattern. Press play from bar 1: it plays.
+2. Start playback from bar 65 (or any bar): the pattern plays immediately, repeating every pattern length.
+3. Change the project tempo while playing: notes follow the new tempo.
+4. Stop: no stuck notes. (Not yet tested in Live.)

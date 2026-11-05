@@ -242,3 +242,9 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - `voiceProgression()` voices every block in time order (voice leading chains through the previous chord: movement, leaps, shared tones, register and bass continuity, crossing; integer cost, bounded candidates). `generateNotes()` is built on it, so playback, Preview, audition and every export use the same pitches. `GenerationOptions::originalVoicing` forces Auto for a future "Original Chords.mid".
 - Tests (`test_voicing.cpp`): Auto restores original, triad to 6, 1..12 across distributions/registers, C7 at 3 = C-E-Bb, Fm9 extensions, register bounds, narrow-register report, preserve bass, ids/roles, voice-leading determinism, timing/melody untouched, per-chord override, one engine for playback and export, persistence and legacy round trip. Mutation-checked (priority table, preserve bass, doubling order).
 - Not yet: Inspector UI, Chromatic Dice, slash bass, CHORD/GATE.
+
+## 4m. Transport fix: pattern loops with the host (user-reported)
+- Bug: note ticks were compared directly with the host position, so a 4-bar pattern only sounded at bars 1-4; starting at bar 65 was silent.
+- Fix: `PlaybackScheduler::setLoopLength()` folds the host position into `[0, Progression::lengthTicks())`. A block crossing the pattern end is split, so the wrap is sample-accurate at any block size. Negative host positions (count-in) are not folded. The processor sets the loop length on every playback rebuild and the playhead shows the position inside the pattern. Tempo comes from the host on every block (fallback BPM only without a host position).
+- Also fixed: a locate exactly on a chord boundary no longer fires the previous chord for one sample.
+- Tests: bar-65 start, wrap at block sizes 64/480/1000/4096 against first-principles sample positions, host tempo change, stop releases notes.

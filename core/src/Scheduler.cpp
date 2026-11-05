@@ -31,7 +31,44 @@ std::size_t PlaybackScheduler::activeNoteCount() const {
     return static_cast<std::size_t>(std::count(active_.begin(), active_.end(), static_cast<char>(1)));
 }
 
+void PlaybackScheduler::setLoopLength(Tick loopTicks) {
+    loopTicks_ = loopTicks > 0 ? loopTicks : 0;
+    loopEvents_.clear();
+    loopEvents_.reserve(notes_.size() * 6 + 64);
+}
+
 const std::vector<ScheduledEvent>& PlaybackScheduler::process(const TransportBlock& tb) {
+    const double hostTick = tb.ppqStart * kTicksPerQuarter;
+    const bool valid = tb.numSamples > 0 && std::isfinite(tb.sampleRate) && tb.sampleRate > 0.0 && std::isfinite(tb.bpm) &&
+                       tb.bpm > 0.0 && std::isfinite(tb.ppqStart);
+    if (loopTicks_ <= 0 || !valid || !tb.playing || hostTick < 0.0) return processSegment(tb);
+
+    const double length = static_cast<double>(loopTicks_);
+    const double ticksPerSample = tb.bpm / 60.0 * kTicksPerQuarter / tb.sampleRate;
+    double position = std::fmod(hostTick, length);
+    loopEvents_.clear();
+    int done = 0;
+    int guard = 0;
+    while (done < tb.numSamples && guard++ < 64) {
+        const double samplesToWrap = std::ceil((length - position) / ticksPerSample);
+        int count = tb.numSamples - done;
+        if (samplesToWrap < static_cast<double>(count)) count = std::max(1, static_cast<int>(samplesToWrap));
+        TransportBlock segment = tb;
+        segment.ppqStart = position / kTicksPerQuarter;
+        segment.numSamples = count;
+        for (const auto& e : processSegment(segment)) {
+            ScheduledEvent shifted = e;
+            shifted.sampleOffset += done;
+            loopEvents_.push_back(shifted);
+        }
+        done += count;
+        position = std::fmod(position + count * ticksPerSample, length);
+        if (position < 0.0) position = 0.0;
+    }
+    return loopEvents_;
+}
+
+const std::vector<ScheduledEvent>& PlaybackScheduler::processSegment(const TransportBlock& tb) {
     events_.clear();
 
     const bool valid = tb.numSamples > 0 && std::isfinite(tb.sampleRate) && tb.sampleRate > 0.0 &&
@@ -108,7 +145,7 @@ const std::vector<ScheduledEvent>& PlaybackScheduler::process(const TransportBlo
         }
 
         const bool startsInBlock = s >= lo && s < hi;
-        const bool soundingAtStart = fresh && s < lo && e > lo;
+        const bool soundingAtStart = fresh && s < lo && e > t0;  // a note ending exactly at the locate point is not started
         if (!startsInBlock && !soundingAtStart) continue;
 
         const int onOffset = startsInBlock ? offsetOf(s) : 0;
