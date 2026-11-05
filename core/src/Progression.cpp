@@ -12,8 +12,14 @@ Tick Progression::endTick() const {
     return end;
 }
 
+Tick Progression::melodyEndTick() const {
+    Tick end = 0;
+    for (const auto& note : melody) end = std::max(end, note.endTick());
+    return end;
+}
+
 Tick Progression::lengthTicks() const {
-    const Tick end = endTick();
+    const Tick end = std::max(endTick(), melodyEndTick());
     const Tick bar = timeSignature.ticksPerBar();
     const Tick content = end == 0 ? 0 : ((end + bar - 1) / bar) * bar;
     const Tick requested = lengthBars > 0 ? static_cast<Tick>(lengthBars) * bar : 0;
@@ -48,6 +54,32 @@ std::vector<std::string> Progression::validate() const {
                 (void)voiceChord(key, block.chord, voicing);
             } catch (const std::out_of_range&) {
                 errors.push_back(where + "this chord would go outside the MIDI note range at this octave; lower the octave or simplify the chord");
+            }
+        }
+    }
+
+    // Melody lane.
+    if (melody.size() > static_cast<std::size_t>(kMaxMelodyNotes)) {
+        errors.push_back("too many melody notes (limit " + std::to_string(kMaxMelodyNotes) + ")");
+    }
+    if (melodySettings.chordChannel < kMinMidiChannel || melodySettings.chordChannel > kMaxMidiChannel ||
+        melodySettings.melodyChannel < kMinMidiChannel || melodySettings.melodyChannel > kMaxMidiChannel) {
+        errors.push_back("MIDI channels must be 1..16");
+    }
+    for (std::size_t i = 0; i < melody.size(); ++i) {
+        const auto& n = melody[i];
+        const std::string where = "melody note " + std::to_string(i) + ": ";
+        if (n.pitch < 0 || n.pitch > 127) errors.push_back(where + "pitch must be 0..127");
+        if (n.startTick < 0) errors.push_back(where + "start must be >= 0");
+        if (n.durationTicks < 1) errors.push_back(where + "duration must be >= 1 tick");
+        if (n.velocity < 1 || n.velocity > 127) errors.push_back(where + "velocity must be 1..127");
+    }
+    for (std::size_t i = 0; i < melody.size(); ++i) {
+        for (std::size_t j = i + 1; j < melody.size(); ++j) {
+            const auto& a = melody[i];
+            const auto& b = melody[j];
+            if (a.pitch == b.pitch && a.startTick < b.endTick() && b.startTick < a.endTick()) {
+                errors.push_back("melody notes " + std::to_string(i) + " and " + std::to_string(j) + " overlap on the same pitch");
             }
         }
     }

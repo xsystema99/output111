@@ -13,7 +13,9 @@ add_library(chordcore STATIC
     src/ChordEdit.cpp
     src/Preview.cpp
     src/Grid.cpp
-    src/Audition.cpp)
+    src/Audition.cpp
+    src/Harmony.cpp
+    src/MelodyEdit.cpp)
 
 target_include_directories(chordcore PUBLIC include)
 target_compile_features(chordcore PUBLIC cxx_std_17)

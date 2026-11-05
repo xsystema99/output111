@@ -267,6 +267,27 @@ const char* toString(Thirteenth t) {
     return "none";
 }
 
+const char* toString(ColourMapping m) { return m == ColourMapping::MajorCentric ? "major" : "diatonic"; }
+
+const char* toString(PaletteId p) {
+    switch (p) {
+        case PaletteId::Classic: return "classic";
+        case PaletteId::Soft: return "soft";
+        case PaletteId::ColourBlindSafe: return "colourBlindSafe";
+    }
+    return "classic";
+}
+
+const char* toString(LabelMode l) {
+    switch (l) {
+        case LabelMode::None: return "none";
+        case LabelMode::Pitch: return "pitch";
+        case LabelMode::Degree: return "degree";
+        case LabelMode::Both: return "both";
+    }
+    return "degree";
+}
+
 const char* toString(Suspension s) {
     switch (s) {
         case Suspension::None: return "none";
@@ -321,6 +342,14 @@ struct Reader {
         return true;
     }
 
+    bool boolean(const Json& object, const std::string& path, const char* key, bool& out, bool required = true) {
+        const Json* v = member(object, path, key, required);
+        if (v == nullptr) return !required;
+        if (v->type != Json::Type::Bool) return fail(path + "." + key, "expected true or false");
+        out = v->boolean;
+        return true;
+    }
+
     template <typename Enum, std::size_t N>
     bool enumeration(const Json& object, const std::string& path, const char* key, Enum& out,
                      const std::pair<const char*, Enum> (&table)[N], bool required = true) {
@@ -337,6 +366,16 @@ struct Reader {
         return fail(where, "unknown value '" + v->string + "'");
     }
 };
+
+const std::pair<const char*, ColourMapping> kMappings[] = {{"diatonic", ColourMapping::DiatonicCentric},
+                                                           {"major", ColourMapping::MajorCentric}};
+const std::pair<const char*, PaletteId> kPalettes[] = {{"classic", PaletteId::Classic},
+                                                       {"soft", PaletteId::Soft},
+                                                       {"colourBlindSafe", PaletteId::ColourBlindSafe}};
+const std::pair<const char*, LabelMode> kLabelModes[] = {{"none", LabelMode::None},
+                                                         {"pitch", LabelMode::Pitch},
+                                                         {"degree", LabelMode::Degree},
+                                                         {"both", LabelMode::Both}};
 
 const std::pair<const char*, Mode> kModes[] = {{"major", Mode::Major}, {"minor", Mode::Minor}};
 const std::pair<const char*, Quality> kQualities[] = {{"major", Quality::Major},
@@ -388,7 +427,39 @@ std::string serializeProgression(const Progression& p) {
         if (b.octave != 0) out += ",\"octave\":" + std::to_string(b.octave);
         out += "}";
     }
-    out += "]}";
+    out += "]";
+    // Melody lane and its settings: written only when used, so an old-style project stays byte-identical.
+    if (!p.melody.empty()) {
+        out += ",\"melody\":[";
+        for (std::size_t i = 0; i < p.melody.size(); ++i) {
+            const auto& n = p.melody[i];
+            if (i > 0) out += ",";
+            out += "{\"pitch\":" + std::to_string(n.pitch) + ",\"startTick\":" + std::to_string(n.startTick) +
+                   ",\"durationTicks\":" + std::to_string(n.durationTicks) + ",\"velocity\":" + std::to_string(n.velocity);
+            if (n.locked) out += ",\"locked\":true";
+            out += "}";
+        }
+        out += "]";
+    }
+    if (p.melodySettings != MelodySettings{}) {
+        const auto& m = p.melodySettings;
+        const MelodySettings d;
+        out += ",\"melodySettings\":{";
+        std::string fields;
+        auto add = [&fields](const std::string& f) {
+            if (!fields.empty()) fields += ",";
+            fields += f;
+        };
+        if (m.mapping != d.mapping) add(std::string("\"mapping\":\"") + toString(m.mapping) + "\"");
+        if (m.palette != d.palette) add(std::string("\"palette\":\"") + toString(m.palette) + "\"");
+        if (m.labels != d.labels) add(std::string("\"labels\":\"") + toString(m.labels) + "\"");
+        if (m.chordChannel != d.chordChannel) add("\"chordChannel\":" + std::to_string(m.chordChannel));
+        if (m.melodyChannel != d.melodyChannel) add("\"melodyChannel\":" + std::to_string(m.melodyChannel));
+        if (m.muteChords) add("\"muteChords\":true");
+        if (m.muteMelody) add("\"muteMelody\":true");
+        out += fields + "}";
+    }
+    out += "}";
     return out;
 }
 
@@ -475,6 +546,39 @@ DeserializeResult deserializeProgression(std::string_view text) {
         block.startTick = start;
         block.durationTicks = duration;
         p.blocks.push_back(block);
+    }
+
+    if (const Json* melody = r.member(root, "$", "melody", /*required=*/false)) {
+        if (melody->type != Json::Type::Array) return fail("$.melody: expected an array");
+        if (melody->array.size() > static_cast<std::size_t>(kMaxMelodyNotes)) return fail("$.melody: too many notes");
+        for (std::size_t i = 0; i < melody->array.size(); ++i) {
+            const Json& m = melody->array[i];
+            const std::string path = "$.melody[" + std::to_string(i) + "]";
+            if (m.type != Json::Type::Object) return fail(path + ": expected an object");
+            MelodyNote note;
+            long long start = 0, duration = 0;
+            if (!r.narrowInt(m, path, "pitch", note.pitch) || !r.integer(m, path, "startTick", start) ||
+                !r.integer(m, path, "durationTicks", duration) || !r.narrowInt(m, path, "velocity", note.velocity) ||
+                !r.boolean(m, path, "locked", note.locked, /*required=*/false)) {
+                return fail(r.error);
+            }
+            note.startTick = start;
+            note.durationTicks = duration;
+            p.melody.push_back(note);
+        }
+    }
+    if (const Json* ms = r.member(root, "$", "melodySettings", /*required=*/false)) {
+        if (ms->type != Json::Type::Object) return fail("$.melodySettings: expected an object");
+        auto& s = p.melodySettings;
+        if (!r.enumeration(*ms, "$.melodySettings", "mapping", s.mapping, kMappings, false) ||
+            !r.enumeration(*ms, "$.melodySettings", "palette", s.palette, kPalettes, false) ||
+            !r.enumeration(*ms, "$.melodySettings", "labels", s.labels, kLabelModes, false) ||
+            !r.narrowInt(*ms, "$.melodySettings", "chordChannel", s.chordChannel, false) ||
+            !r.narrowInt(*ms, "$.melodySettings", "melodyChannel", s.melodyChannel, false) ||
+            !r.boolean(*ms, "$.melodySettings", "muteChords", s.muteChords, false) ||
+            !r.boolean(*ms, "$.melodySettings", "muteMelody", s.muteMelody, false)) {
+            return fail(r.error);
+        }
     }
 
     const auto problems = p.validate();

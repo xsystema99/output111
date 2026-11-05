@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include <chordcore/Melody.h>
 #include <chordcore/Theory.h>
 #include <chordcore/Types.h>
 
@@ -39,11 +40,16 @@ struct Progression {
     int octave = 0;      ///< shifts every chord by this many octaves (-2..+2); 0 = the default voicing range
     int lengthBars = 0;  ///< minimum project/clip length in bars; 0 = automatic (just long enough for the chords)
     std::vector<ChordBlock> blocks;
+    std::vector<MelodyNote> melody;  ///< the melody lane, kept sorted by (startTick, pitch)
+    MelodySettings melodySettings;
 
     /// End of the last chord (0 if there are no blocks).
     Tick endTick() const;
 
-    /// The length of an exported clip: endTick() rounded up to a whole number of bars, but never shorter than
+    /// End of the last melody note (0 if there is no melody).
+    Tick melodyEndTick() const;
+
+    /// The length of an exported clip: the later of endTick() and melodyEndTick() rounded up to a whole number of bars, but never shorter than
     /// lengthBars bars when that is set (so a 4-chord idea can be exported as an 8-bar loop).
     Tick lengthTicks() const;
 
@@ -53,7 +59,8 @@ struct Progression {
 
 inline bool operator==(const Progression& a, const Progression& b) {
     return a.key == b.key && a.tempoBpm == b.tempoBpm && a.timeSignature == b.timeSignature && a.octave == b.octave &&
-           a.lengthBars == b.lengthBars && a.blocks == b.blocks;
+           a.lengthBars == b.lengthBars && a.blocks == b.blocks && a.melody == b.melody &&
+           a.melodySettings == b.melodySettings;
 }
 inline bool operator!=(const Progression& a, const Progression& b) { return !(a == b); }
 
