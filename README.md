@@ -271,7 +271,7 @@ What this build adds: a colour-coded melody piano roll under the chord grid. Bac
 
 Please tell me what does not match, including anything that looks or feels wrong even if it works.
 
-## Manual test checklist: Build B, melody export and mutes (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: Build B, melody export and mutes (Ableton Live 12.4.16, Windows) — user reports it works (tested together as one build, no per-step detail given)
 
 What this build adds: **Export MIDI...** now asks what to export (Combined / Chords only / Melody only) and whether the melody goes on its own channel or channel 1; the drag handle has a "Drag: both / chords / melody" choice; "Mute chords" and "Mute melody" silence a part in playback only. Exports ignore mutes.
 
@@ -283,7 +283,7 @@ What this build adds: **Export MIDI...** now asks what to export (Combined / Cho
 6. Mute melody, press play: only chords sound. Mute chords instead: only the melody. Both off: both play. Mute state is saved with the project and each press is an undo step. Export still contains both parts while muted.
 7. Route channel 2 to its own instrument in Live if you like (Live's MIDI-From channel setting on a second track). The plugin only sets the channel numbers; whether Live treats them as separate tracks is up to Live's routing.
 
-## Manual test checklist: Build C, melody generator (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: Build C, melody generator (Ableton Live 12.4.16, Windows) — user reports it works (tested together as one build, no per-step detail given)
 
 What this build adds: a **Generate...** button under the piano roll opens the generator panel (contour, density, rhythm, length, tension, register, seed). The generator is a deterministic rule-based engine: it favours chord tones on strong beats, scale tones on weak beats, small steps over leaps, phrase endings on the chord root, and only uses notes outside the key when Tension allows. It runs when you press a button (never while audio plays), and every run is one undo step.
 
