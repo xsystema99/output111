@@ -223,7 +223,7 @@ Confirmed by the user in Live (no per-step detail given).
 
 If Live refuses the drop, say what happens (nothing, forbidden cursor, or an error) and I'll adjust; Export MIDI... remains the fallback. The file is written to the Windows temp folder, `ChordSketch\ChordSketch.mid`.
 
-## Manual test checklist: M5, 9th chords (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: M5, 9th chords (Ableton Live 12.4.16, Windows) — user reports it works
 
 Theory, names, numerals, edits, save/reload and MIDI export of 9ths are covered by automated tests (tests/test_ninth.cpp); the button and display are not yet seen in Live.
 
@@ -235,7 +235,7 @@ Theory, names, numerals, edits, save/reload and MIDI export of 9ths are covered 
 
 Not included: 11ths, 13ths, other alterations, or 9th inversions (a 9th chord is root position only). Minor-key numerals stay natural-minor style (i, III, VI, VII).
 
-## Manual test checklist: inversions (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: inversions (Ableton Live 12.4.16, Windows) — user reports it works
 
 Voicing, limits, names, numerals and edit rules are covered by automated tests (tests/test_inversion.cpp); the buttons are not yet seen in Live.
 
