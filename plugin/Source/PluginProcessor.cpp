@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 
+#include <algorithm>
+
 #include "PluginEditor.h"
 
 #include <chordcore/MidiFile.h>
@@ -18,11 +20,11 @@ ChordSketchProcessor::ChordSketchProcessor()
 void ChordSketchProcessor::rebuildPlaybackLocked() {
     const auto& current = document.progression();
     fallbackTempo.store(current.tempoBpm);
-    previewEndPpq.store(static_cast<double>(current.endTick()) / static_cast<double>(chordcore::kTicksPerQuarter));
+    previewEndPpq.store(static_cast<double>(std::max(current.endTick(), current.melodyEndTick())) / static_cast<double>(chordcore::kTicksPerQuarter));
 
     std::vector<chordcore::NoteEvent> notes;
     try {
-        notes = chordcore::generateNotes(current);  // the same notes the file export uses
+        notes = chordcore::generateProjectNotes(current);  // chords + melody, the same events the exports use
     } catch (const std::exception&) {
         // An invalid progression plays nothing (Document never holds one, so this is defensive).
     }
@@ -117,10 +119,17 @@ void ChordSketchProcessor::auditionChord(const chordcore::ChordSpec& chord, int 
         std::vector<int> pitches;
         for (const auto& n : chordcore::generateNotes(p)) pitches.push_back(n.pitch);  // the one note generator
         const juce::SpinLock::ScopedLockType lock(auditionLock);
-        audition.request(std::move(pitches), 96, 0);
+        audition.request(std::move(pitches), 96, p.melodySettings.chordChannel - 1);
     } catch (const std::exception&) {
         // An invalid or out-of-range chord is simply not auditioned.
     }
+}
+
+void ChordSketchProcessor::auditionMelodyNote(int pitch, int velocity) {
+    if (pitch < 0 || pitch > 127) return;
+    const int channel = getProgression().melodySettings.melodyChannel - 1;
+    const juce::SpinLock::ScopedLockType lock(auditionLock);
+    audition.request({pitch}, std::max(1, std::min(127, velocity)), channel);
 }
 
 void ChordSketchProcessor::prepareToPlay(double sampleRate, int) {

@@ -209,3 +209,13 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - Audition: `AuditionPlayer` (core, tested) emits the same events as the scheduler; the processor feeds it under its own spin lock, only when the host is stopped and Preview is idle, and every note-on gets one note-off.
 - Resize: the editor is resizable (minimum 640 x 716); extra height goes to the grid, extra width to the grid, sliders and palette.
 
+
+
+## 4i. Melody lane, harmony colours and compatibility (Build A)
+
+- `Harmony.h`: one resolver (key + colour mapping + palette) turns a pitch into a note colour/label (identity) and, given the active chord's pitch-class mask, into a compatibility class (chord tone > scale tone > chromatic) and a background colour. `buildCompatibility()` produces one region per chord block with its exact tick boundaries. Note colour never depends on the chord; background never depends on the colour mapping except through the tint colour.
+- `Melody.h` / `MelodyEdit.h`: `MelodyNote` {pitch, start, duration, velocity, locked}, `MelodySettings` (colour mapping, palette, label mode, channels, mutes) stored in `Progression`; sorted by (start, pitch); same-pitch notes never overlap. All edit operations are core functions (add, move time+pitch, resize, delete, duplicate, paste, velocity, lock) returning new indices, undone through `Document`.
+- Persistence: `melody` and `melodySettings` are optional JSON fields written only when used, so old projects load unchanged and unchanged projects serialise byte-identically (state version stays 1).
+- Playback: `generateProjectNotes()` = chords (chord channel) + melody (melody channel) minus muted parts; the scheduler is fed from it. Export of the melody and the three-file export are Build B.
+- UI: `MelodyRollComponent` draws with the chord grid's view (origin, zoom, snap, bar/beat lines), precomputes backgrounds when the model changes, paints only rectangles.
+- Decisions: lock protects a note from the generator only (hand edits still work). Chord Density and Chromatic Dice do not exist in this codebase; spec test I is expressed as replacing a chord.

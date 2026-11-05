@@ -43,6 +43,11 @@ public:
     void setInsertDuration(chordcore::Tick ticks) { insertDuration = ticks; }
     void fitToWindow();
 
+    /// The shared time view (the melody piano roll draws with exactly this origin and zoom) and snap unit.
+    const chordcore::TimelineView& getView() const noexcept { return currentView; }
+    chordcore::Tick getSnapUnit() const { return unit(); }
+    std::function<void()> onViewChanged;  ///< zoom, scroll or project length changed
+
     void deleteSelection();
     void duplicateSelection();
 
@@ -76,6 +81,7 @@ private:
 
     void applyView(chordcore::TimelineView next, bool userAction);
     void updateScrollBar();
+    void notifyView() { if (onViewChanged) onViewChanged(); }
     void setSelectionInternal(std::vector<std::size_t> indices, int newPrimary, bool notify);
     bool isSelected(std::size_t index) const;
     void commitGesture();

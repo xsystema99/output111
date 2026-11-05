@@ -59,6 +59,10 @@ public:
     /// plays or Preview runs. Message thread.
     void auditionChord(const chordcore::ChordSpec& chord, int blockOctave);
 
+    /// Plays one melody note (on the melody channel) for about 0.8 s, e.g. when a piano-roll note is inserted or
+    /// dragged to a new pitch. Same rules as auditionChord. Message thread.
+    void auditionMelodyNote(int pitch, int velocity = 96);
+
     // ---- project access (any non-audio thread)
     /// A copy of the current progression.
     chordcore::Progression getProgression() const;

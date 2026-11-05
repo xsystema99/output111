@@ -31,12 +31,12 @@ void styleCombo(juce::ComboBox& box) {
 }
 
 constexpr int kPaletteDegrees = 7;
-constexpr int kBaseWidth = 640, kBaseHeight = 716;  // the smallest size: the layout below is tuned for it
+constexpr int kBaseWidth = 640, kBaseHeight = 968;  // the smallest size: the layout below is tuned for it
 
 }  // namespace
 
 ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
-    : juce::AudioProcessorEditor(&p), chordProcessor(p), model(p.getProgression()), timeline(p) {
+    : juce::AudioProcessorEditor(&p), chordProcessor(p), model(p.getProgression()), timeline(p), roll(p, timeline) {
 
     // header
     titleLabel.setText("ChordSketch", juce::dontSendNotification);
@@ -115,6 +115,41 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     timeline.onSelectionChanged = [this](const std::vector<std::size_t>&, int) { selectionChanged(); };
     timeline.onMessage = [this](const juce::String& text) { setStatus(text); };
     addAndMakeVisible(timeline);
+
+    // melody piano roll (shares the grid's zoom, scroll and snap)
+    styleLabel(melodyCaption, 14.0f, true, ui::textColour());
+    styleLabel(velocityCaption, 12.0f, false, ui::mutedTextColour());
+    styleLabel(melodyHint, 11.0f, false, ui::mutedTextColour(), juce::Justification::centredRight);
+    melodyHint.setText("bright = chord tone, faint = scale tone, hatched = outside the key", juce::dontSendNotification);
+    mappingBox.addItem("Colours: Diatonic", 1);
+    mappingBox.addItem("Colours: Major-centric", 2);
+    paletteBox.addItem("Palette: Classic", 1);
+    paletteBox.addItem("Palette: Soft", 2);
+    paletteBox.addItem("Palette: Colour-blind", 3);
+    labelsBox.addItem("Labels: None", 1);
+    labelsBox.addItem("Labels: Pitch", 2);
+    labelsBox.addItem("Labels: Degree", 3);
+    labelsBox.addItem("Labels: Both", 4);
+    for (auto* b : {&mappingBox, &paletteBox, &labelsBox}) {
+        styleCombo(*b);
+        b->onChange = [this] { melodySettingsChanged(); };
+        addAndMakeVisible(*b);
+    }
+    mappingBox.setSelectedId(1, juce::dontSendNotification);
+    paletteBox.setSelectedId(1, juce::dontSendNotification);
+    labelsBox.setSelectedId(3, juce::dontSendNotification);
+    velocitySlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    velocitySlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 34, 20);
+    velocitySlider.setRange(1.0, 127.0, 1.0);
+    velocitySlider.setValue(90.0, juce::dontSendNotification);
+    velocitySlider.setEnabled(false);
+    velocitySlider.onValueChange = [this] { roll.setSelectedVelocity(static_cast<int>(velocitySlider.getValue())); };
+    lockButton.setEnabled(false);
+    lockButton.onClick = [this] { roll.toggleLockSelected(); };
+    roll.onMessage = [this](const juce::String& text) { setStatus(text); };
+    roll.onSelectionChanged = [this] { melodySelectionChanged(); };
+    timeline.onViewChanged = [this] { roll.viewChanged(); };
+    for (auto* c : std::initializer_list<juce::Component*>{&melodyCaption, &velocityCaption, &melodyHint, &velocitySlider, &lockButton, &roll}) addAndMakeVisible(*c);
 
     // palette
     styleLabel(paletteCaption, 14.0f, true, ui::textColour());
@@ -318,7 +353,26 @@ void ChordSketchEditor::resized() {
     area.removeFromTop(6);
     // a taller window gives its extra height to the grid
     timeline.setBounds(area.removeFromTop(150 + std::max(0, getHeight() - kBaseHeight)));
-    area.removeFromTop(16);
+    area.removeFromTop(8);
+
+    // melody piano roll
+    auto melodyHeader = area.removeFromTop(26);
+    melodyCaption.setBounds(melodyHeader.removeFromLeft(62));
+    mappingBox.setBounds(melodyHeader.removeFromLeft(158));
+    melodyHeader.removeFromLeft(8);
+    paletteBox.setBounds(melodyHeader.removeFromLeft(150));
+    melodyHeader.removeFromLeft(8);
+    labelsBox.setBounds(melodyHeader.removeFromLeft(120));
+    area.removeFromTop(4);
+    roll.setBounds(area.removeFromTop(172));
+    area.removeFromTop(4);
+    auto melodyFooter = area.removeFromTop(26);
+    velocityCaption.setBounds(melodyFooter.removeFromLeft(58));
+    velocitySlider.setBounds(melodyFooter.removeFromLeft(168));
+    melodyFooter.removeFromLeft(8);
+    lockButton.setBounds(melodyFooter.removeFromLeft(56));
+    melodyHint.setBounds(melodyFooter.withTrimmedLeft(8));
+    area.removeFromTop(12);
 
     // palette
     paletteCaption.setBounds(area.removeFromTop(22));
@@ -415,6 +469,11 @@ void ChordSketchEditor::refreshFromModel() {
     model = chordProcessor.getProgression();
     const auto history = chordProcessor.getHistoryInfo();
     timeline.setProgression(model);  // also drops selection indices that no longer exist
+    roll.setProgression(model);
+    mappingBox.setSelectedId(model.melodySettings.mapping == ColourMapping::DiatonicCentric ? 1 : 2, juce::dontSendNotification);
+    paletteBox.setSelectedId(static_cast<int>(model.melodySettings.palette) + 1, juce::dontSendNotification);
+    labelsBox.setSelectedId(static_cast<int>(model.melodySettings.labels) + 1, juce::dontSendNotification);
+    melodySelectionChanged();
     selected = timeline.getPrimary();
 
     // key / scale / meter
@@ -493,6 +552,26 @@ void ChordSketchEditor::refreshFromModel() {
 }
 
 void ChordSketchEditor::selectionChanged() { refreshFromModel(); }
+
+void ChordSketchEditor::melodySelectionChanged() {
+    const int count = roll.selectedCount();
+    velocitySlider.setEnabled(count > 0);
+    lockButton.setEnabled(count > 0);
+    if (count > 0) velocitySlider.setValue(roll.primaryVelocity(), juce::dontSendNotification);
+    lockButton.setButtonText(count > 0 && roll.primaryLocked() ? "Unlock" : "Lock");
+}
+
+void ChordSketchEditor::melodySettingsChanged() {
+    const auto mapping = mappingBox.getSelectedId() == 2 ? ColourMapping::MajorCentric : ColourMapping::DiatonicCentric;
+    const auto palette = static_cast<PaletteId>(std::clamp(paletteBox.getSelectedId(), 1, 3) - 1);
+    const auto labels = static_cast<LabelMode>(std::clamp(labelsBox.getSelectedId(), 1, 4) - 1);
+    const auto result = chordProcessor.editProgression("Melody display", [=](Progression& p) {
+        p.melodySettings.mapping = mapping;
+        p.melodySettings.palette = palette;
+        p.melodySettings.labels = labels;
+    });
+    if (!result.ok) setStatus("Could not change the melody display: " + juce::String(result.error));
+}
 
 void ChordSketchEditor::applyToSelected(const std::string& label,
                                         const std::function<void(Progression&, std::size_t)>& change) {

@@ -78,6 +78,7 @@ void GridComponent::applyView(TimelineView next, bool userAction) {
     currentView = clampView(next, extent(), laneWidth());
     if (userAction) userZoomed = true;
     updateScrollBar();
+    notifyView();
     repaint();
 }
 
@@ -93,6 +94,7 @@ void GridComponent::scrollBarMoved(juce::ScrollBar*, double newRangeStart) {
     next.originTick = static_cast<Tick>(std::llround(newRangeStart));
     currentView = clampView(next, extent(), laneWidth());
     userZoomed = true;
+    notifyView();
     repaint();
 }
 
@@ -122,6 +124,7 @@ void GridComponent::setProgression(const Progression& p) {
     if (!userZoomed) currentView = clampView(fitView(model, laneWidth()), extent(), laneWidth());
     else currentView = clampView(currentView, extent(), laneWidth());
     updateScrollBar();
+    notifyView();
     repaint();
 }
 
@@ -153,6 +156,7 @@ void GridComponent::timerCallback() {
             next.originTick = std::max<Tick>(0, tick - static_cast<Tick>(laneWidth() * 0.1 / currentView.pixelsPerTick));
             currentView = clampView(next, extent(), laneWidth());
             updateScrollBar();
+            notifyView();
             x = currentView.tickToX(tick);
         }
     }

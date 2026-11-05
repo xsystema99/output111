@@ -4,6 +4,7 @@
 
 #include <chordcore/Document.h>
 #include <chordcore/MelodyEdit.h>
+#include <chordcore/NoteEngine.h>
 #include <chordcore/Progression.h>
 #include <chordcore/Serialization.h>
 
@@ -250,4 +251,38 @@ TEST_CASE("melody edit: undo and redo through the document", "[melody]") {
     const auto before = d.progression();
     CHECK_FALSE(d.edit("Bad", [](Progression& p) { p.melody.push_back(p.melody[0]); }).ok);
     CHECK(d.progression() == before);
+}
+
+TEST_CASE("melody: project notes use separate channels and honour mutes (test F)", "[melody]") {
+    auto p = base();
+    p.melody = {note(72, 0, 480), note(74, 480, 480)};
+    const auto all = generateProjectNotes(p);
+    int chordNotes = 0, melodyNotes = 0;
+    for (const auto& n : all) {
+        if (n.channel == 0) ++chordNotes;
+        else if (n.channel == 1) ++melodyNotes;
+        else FAIL("unexpected channel " << n.channel);
+    }
+    CHECK(chordNotes == 12);  // four triads
+    CHECK(melodyNotes == 2);
+    CHECK(generateMelodyNotes(p).size() == 2);
+    CHECK(generateMelodyNotes(p)[0].channel == 1);
+
+    p.melodySettings.muteMelody = true;
+    for (const auto& n : generateProjectNotes(p)) CHECK(n.channel == 0);
+    p.melodySettings.muteMelody = false;
+    p.melodySettings.muteChords = true;
+    const auto onlyMelody = generateProjectNotes(p);
+    REQUIRE(onlyMelody.size() == 2);
+    for (const auto& n : onlyMelody) CHECK(n.channel == 1);
+
+    p.melodySettings = MelodySettings{};
+    p.melodySettings.chordChannel = 5;
+    p.melodySettings.melodyChannel = 9;
+    for (const auto& n : generateProjectNotes(p)) CHECK((n.channel == 4 || n.channel == 8));
+    // the chord events are exactly what the chord generator produces
+    p.melody.clear();
+    GenerationOptions o;
+    o.channel = 4;
+    CHECK(generateProjectNotes(p) == generateNotes(p, o));
 }

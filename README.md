@@ -255,6 +255,22 @@ All of the music logic here is covered by automated tests (test_progressiontext,
 4. **Palette audition.** With the DAW stopped, click a palette chord: you hear it briefly (about 0.8 s) from the track the plugin's MIDI goes to (same routing as Preview). It must not play while the DAW plays or Preview runs, and no note may hang.
 5. **Resizable window.** Drag the window's bottom-right corner: it grows (minimum 640 x 716); the extra height goes to the grid. Check that Live lets you resize it. The size is not remembered between sessions.
 
+## Manual test checklist: melody piano roll, Build A (Ableton Live 12.4.16, Windows) — not yet run
+
+What this build adds: a colour-coded melody piano roll under the chord grid. Backgrounds show how each pitch relates to the chord that is active at that moment; note colours show the scale-degree identity. Playback sends chords on MIDI channel 1 and the melody on channel 2. **MIDI export is still chords-only in this build** (the Chords/Melody/Combined export comes in Build B). The melody generator comes in Build C.
+
+1. Load the plugin on a MIDI track with an instrument after it. Under the chord grid there is a "Melody" row (colour mapping, palette, labels) and an empty piano roll with chord names along its top edge.
+2. Look at the backgrounds with the transport **stopped**. In C major over a C chord, C/E/G rows are bright, the other white-key rows faint, black-key rows hatched. Chord boundaries are exact vertical lines that line up with the chord cards above.
+3. Click an empty cell: a note appears (and sounds through your instrument). Its colour should be C red, D orange, E yellow, F green, G blue, A purple, B pink (Classic palette, C major).
+4. Change a chord (palette or inversion/extension buttons). The backgrounds under that chord change; the note colours do **not**.
+5. Drag a note sideways and up/down; drag its left/right edge to resize; drag empty space to rectangle-select; Shift-click toggles; Ctrl+A, Delete, Ctrl+D, Ctrl+C / Ctrl+V (pastes at the pointer), arrow keys (Shift = octave) all work. Ctrl+wheel / Shift+wheel zoom and scroll both lanes together; plain wheel scrolls pitch.
+6. Select notes: the Velocity slider changes them (brighter = louder); Lock marks them (a small bar on top). Undo/Redo (the tools row) reverts every one of these edits.
+7. Change Key (e.g. to F minor, or A minor) and the Colours / Palette / Labels boxes. Labels: degree, pitch, both, none.
+8. Press play in Live: melody notes sound on channel 2 together with the chords. Save the Live set, reopen it: notes, locks, colour settings are back.
+9. Open a project saved by an older build: it loads with an empty melody and chords unchanged.
+
+Please tell me what does not match, including anything that looks or feels wrong even if it works.
+
 ## Licensing
 
 JUCE is dual-licensed (AGPLv3 / commercial). Distributing a plugin built with JUCE requires either

@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "GridComponent.h"
+#include "MelodyRollComponent.h"
 #include "MidiDragHandle.h"
 #include "UiKit.h"
 
@@ -41,6 +42,8 @@ private:
     void setStatus(const juce::String& text);
 
     void selectionChanged();
+    void melodySelectionChanged();
+    void melodySettingsChanged();
     void applyToSelected(const std::string& label, const std::function<void(chordcore::Progression&, std::size_t)>& change);
     void paletteClicked(int degree);
     void keyChanged();
@@ -77,6 +80,13 @@ private:
     juce::ComboBox snapBox, insertLengthBox;
     ui::StyledButton fitButton{"Fit", ui::StyledButton::Look::Outline, 13.0f};
     GridComponent timeline;
+
+    // melody piano roll
+    juce::Label melodyCaption{{}, "Melody"}, velocityCaption{{}, "Velocity"}, melodyHint;
+    juce::ComboBox mappingBox, paletteBox, labelsBox;
+    juce::Slider velocitySlider;
+    ui::StyledButton lockButton{"Lock", ui::StyledButton::Look::Outline, 13.0f};
+    MelodyRollComponent roll;
 
     // palette
     juce::Label paletteCaption{{}, "Chord palette"};

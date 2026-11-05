@@ -36,4 +36,13 @@ struct GenerationOptions {
 /// (startTick, pitch). Throws std::invalid_argument if the progression or options are invalid.
 std::vector<NoteEvent> generateNotes(const Progression& progression, const GenerationOptions& options = {});
 
+/// The melody lane as note events on the melody channel (Progression::melodySettings.melodyChannel). Mute is NOT
+/// applied here; generateProjectNotes() decides what is audible. Sorted by (startTick, pitch).
+std::vector<NoteEvent> generateMelodyNotes(const Progression& progression);
+
+/// Everything the project plays: chords on the chord channel (options.channel is replaced by
+/// melodySettings.chordChannel) plus the melody on the melody channel, minus whichever part is muted. This is the
+/// single source for transport playback, Preview and the combined export. Sorted by (startTick, pitch, channel).
+std::vector<NoteEvent> generateProjectNotes(const Progression& progression, GenerationOptions options = {});
+
 }  // namespace chordcore
