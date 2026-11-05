@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "GridComponent.h"
 #include "GeneratorPanel.h"
+#include "HarmonicInspector.h"
 #include "MelodyRollComponent.h"
 #include "MidiDragHandle.h"
 #include "UiKit.h"
@@ -36,6 +37,8 @@ public:
     void resized() override;
 
 private:
+    int inspectorExtraWidth() const noexcept;  ///< window width the open Inspector adds
+    void toggleInspector();
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void timerCallback() override;
     void previewClicked();
@@ -73,6 +76,11 @@ private:
 
     // header
     juce::Rectangle<int> iconBounds, badgeBounds;
+    bool inspectorOpen = true;
+    int mainColumnWidth = 0;
+    ui::StyledButton inspectorButton{"Inspector", ui::StyledButton::Look::Pill, 12.0f};
+    juce::Viewport inspectorViewport;
+    HarmonicInspector inspector;
     juce::Label titleLabel, subtitleLabel;
 
     // key / scale / meter

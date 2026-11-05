@@ -3,6 +3,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chordcore/MidiFile.h>
 #include <chordcore/NoteEngine.h>
 #include <chordcore/Progression.h>
 #include <chordcore/Serialization.h>
@@ -383,4 +384,64 @@ TEST_CASE("density: expansion doubles the root first, then the fifth, then the t
     CHECK(count(five, 4) == 1);
     const auto six = voice(triadC(), dense(6));
     CHECK(count(six, 4) == 2);
+}
+
+TEST_CASE("export: voiced and original chord files use the same engine as playback", "[voicing][export]") {
+    auto dense6 = threeChords(dense(6, Distribution::Spread));
+    auto autoProgression = dense6;
+    autoProgression.voicing = VoicingSettings{};
+    ProjectExportOptions voiced;
+    voiced.part = ExportPart::Chords;
+    ProjectExportOptions original = voiced;
+    original.originalVoicing = true;
+    // "Original" equals a project that never had density; "voiced" differs and equals the generator's events.
+    CHECK(exportProject(dense6, original) == exportProject(autoProgression, voiced));
+    CHECK(exportProject(dense6, voiced) != exportProject(dense6, original));
+    CHECK(exportProject(autoProgression, original) == exportProject(autoProgression, voiced));
+    GenerationOptions viaOption;
+    viaOption.originalVoicing = true;
+    CHECK(exportProject(dense6, voiced, viaOption) == exportProject(dense6, original));
+    CHECK(exportFileName(ExportPart::Chords, true) == "Original Chords.mid");
+    CHECK(exportFileName(ExportPart::Chords, false) == "Chords.mid");
+    CHECK(exportFileName(ExportPart::Melody, true) == "Melody.mid");
+    // the notes behind the voiced export are the playback notes
+    CHECK(generateProjectNotes(dense6).size() == generateNotes(dense6).size());
+}
+
+namespace {
+
+// A stand-in for CHORD/GATE: halves the length of the bass voice only. Proves the stage slot and voice identity work.
+class HalveBass final : public PerformanceStage {
+public:
+    void apply(const Progression&, const std::vector<VoicedChord>&, std::vector<NoteEvent>& events,
+               std::vector<EventOrigin>& origins) const override {
+        REQUIRE(events.size() == origins.size());
+        for (std::size_t i = 0; i < events.size(); ++i) {
+            if (origins[i].role == VoiceRole::Bass) events[i].lengthTicks /= 2;
+        }
+    }
+};
+
+}  // namespace
+
+TEST_CASE("performance stage slot: default is a no-op, a stage can address voices by identity", "[voicing][performance]") {
+    const auto p = threeChords(dense(4, Distribution::Close));
+    const auto plain = generateNotes(p);
+    GenerationOptions none;
+    CHECK(generateNotes(p, none) == plain);
+
+    HalveBass stage;
+    GenerationOptions withStage;
+    withStage.performance = &stage;
+    const auto staged = generateNotes(p, withStage);
+    REQUIRE(staged.size() == plain.size());
+    int changed = 0;
+    for (std::size_t i = 0; i < plain.size(); ++i) {
+        CHECK(staged[i].pitch == plain[i].pitch);
+        CHECK(staged[i].startTick == plain[i].startTick);
+        if (staged[i].lengthTicks != plain[i].lengthTicks) ++changed;
+    }
+    CHECK(changed == 3);  // one bass voice per chord
+    // the stage sits after Voice Allocation: the voiced pitches it sees are the density-allocated ones
+    CHECK(plain.size() == 12);
 }

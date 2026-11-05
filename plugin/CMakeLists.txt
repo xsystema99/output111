@@ -44,6 +44,7 @@ target_sources(ChordSketch PRIVATE
     Source/GridComponent.cpp
     Source/GridComponent.h
     Source/GeneratorPanel.cpp
+    Source/HarmonicInspector.cpp
     Source/GeneratorPanel.h
     Source/MelodyRollComponent.cpp
     Source/MelodyRollComponent.h

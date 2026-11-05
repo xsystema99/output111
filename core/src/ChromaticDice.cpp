@@ -26,24 +26,7 @@ struct Rng {  // SplitMix64, identical on every platform
 
 int floorMod12(int v) { return ((v % 12) + 12) % 12; }
 
-// Root as (degree, accidental) of the project key: the nearest scale degree, flats preferred, the tritone is #4.
-bool degreeFor(const Key& key, int rootRel, ChordSpec& out) {
-    int bestDegree = 0, bestAcc = 0, bestCost = 99;
-    for (int degree = 1; degree <= 7; ++degree) {
-        const int diff = rootRel - scaleDegreeSemitones(key.mode, degree);
-        int d = diff;
-        if (d > 6) d -= 12;
-        if (d < -6) d += 12;
-        if (d < -1 || d > 1) continue;
-        int cost = std::abs(d) * 10 + (d > 0 ? 1 : 0);  // exact first, then flat before sharp
-        if (rootRel == 6 && d == 1) cost = 5;            // the tritone reads as a sharpened fourth (#iv)
-        if (cost < bestCost) { bestCost = cost; bestDegree = degree; bestAcc = d; }
-    }
-    if (bestDegree == 0) return false;
-    out.degree = bestDegree;
-    out.accidental = bestAcc;
-    return true;
-}
+bool degreeFor(const Key& key, int rootRel, ChordSpec& out) { return spellRoot(key, rootRel, out.degree, out.accidental); }
 
 struct Shape {  // chord described by its intervals above the root
     int third, fifth;

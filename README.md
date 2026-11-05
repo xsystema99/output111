@@ -309,3 +309,14 @@ releasing it under a compatible open-source licence or holding a JUCE commercial
 2. Start playback from bar 65 (or any bar): the pattern plays immediately, repeating every pattern length.
 3. Change the project tempo while playing: notes follow the new tempo.
 4. Stop: no stuck notes. (Not yet tested in Live.)
+
+### Manual checklist: Harmonic Inspector, Chord Density, Chromatic Dice (CHORD / DEFINE)
+Not yet tested in Live. Core behaviour is unit-tested (voicing, dice, export, persistence); the panel itself is only syntax-checked and CI-built.
+1. Open the plugin: the Inspector is docked on the right; "Inspector" in the header collapses/expands it (window width follows). Select a chord: the info rows fill in; with nothing selected an empty-state message shows.
+2. Edit root / quality / seventh / 9, 11, 13 / alterations / sus / inversion in the Inspector: the chord changes, its bar position and length do not. Undo/redo each.
+3. Voice Allocation, scope Global: set Density to 6 voices: the keyboard shows 6 filled keys, the label says "target 6 / actual 6"; the chord plays 6 notes in Live. Set Auto / Original: the original voicing returns exactly.
+4. Try Register (Low/Mid/High/Full/Custom + sliders), Layout (Close/Open/Spread), Preserve Bass (on a first-inversion chord the bass stays), Voice Leading (compare chord-to-chord movement).
+5. Choose "Selected chords", change density for one chord only: the others keep the global setting; "Use global" removes the override. Select several chords with different settings: the density box shows "Mixed".
+6. Chromatic Dice: select ONE chord, Dice Roll: it becomes a chord from the parallel modes of the project key (feedback line shows name, Roman numeral, source modes); Reroll gives another; Undo goes back; Redo brings the same chord back. Preserve Root keeps the root; Replace Harmony may change it. The key never changes. Density of that chord stays. The melody is NOT regenerated: "Regenerate Affected Melody" lights up; use it and locked notes stay.
+7. Export MIDI: choose "Chords with original voicing": file is "Original Chords.mid" and ignores density; "as played" matches what Live plays.
+8. Save the Live set, reopen: density, dice settings and the chosen chords are restored. An old ChordSketch project still loads.

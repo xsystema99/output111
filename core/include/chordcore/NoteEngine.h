@@ -23,6 +23,25 @@ inline bool operator==(const NoteEvent& a, const NoteEvent& b) noexcept {
 }
 inline bool operator!=(const NoteEvent& a, const NoteEvent& b) noexcept { return !(a == b); }
 
+/// Where one generated chord note came from, so a later performance stage can address voices by identity.
+struct EventOrigin {
+    std::size_t block = 0;  ///< index into Progression::blocks
+    int voiceId = 0;        ///< VoicedNote::voiceId (stable: chord tone + doubling index, not a vector position)
+    VoiceRole role = VoiceRole::Middle;
+};
+
+/// The slot between Voice Allocation and MIDI output that CHORD/GATE will fill (pipeline: Harmonic Definition ->
+/// Voice Allocation -> Performance -> MIDI playback / export). No gate exists yet, so nothing implements this in the
+/// product; the interface exists so the stage can be added without touching playback or export, and is tested with a
+/// stand-in. A stage may change event lengths, velocities and add or remove events; `origins` runs parallel to
+/// `events` on entry. It runs wherever notes are generated (never on the audio thread).
+class PerformanceStage {
+public:
+    virtual ~PerformanceStage() = default;
+    virtual void apply(const Progression& progression, const std::vector<VoicedChord>& voiced, std::vector<NoteEvent>& events,
+                       std::vector<EventOrigin>& origins) const = 0;
+};
+
 struct GenerationOptions {
     VoicingOptions voicing;
     int velocity = 96;
@@ -31,6 +50,8 @@ struct GenerationOptions {
     Tick releaseGapTicks = 0;
     /// true = ignore every Chord Density setting and use the original voicing (for "Original Chords" export / A-B checks).
     bool originalVoicing = false;
+    /// Optional performance stage (CHORD/GATE slot). nullptr = none, the notes are exactly the voiced chords.
+    const PerformanceStage* performance = nullptr;
 };
 
 /// The voicing of every block (same order as progression.blocks), after Chord Density: the single place that decides

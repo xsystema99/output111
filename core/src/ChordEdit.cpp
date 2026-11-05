@@ -318,4 +318,49 @@ std::string chordName(const Key& key, const ChordSpec& chord) {
     return name;
 }
 
+bool spellRoot(const Key& key, int rootRel, int& degreeOut, int& accidentalOut) {
+    rootRel = ((rootRel % 12) + 12) % 12;
+    int bestDegree = 0, bestAcc = 0, bestCost = 99;
+    for (int degree = 1; degree <= 7; ++degree) {
+        int d = rootRel - scaleDegreeSemitones(key.mode, degree);
+        if (d > 6) d -= 12;
+        if (d < -6) d += 12;
+        if (d < -1 || d > 1) continue;
+        int cost = (d < 0 ? -d : d) * 10 + (d > 0 ? 1 : 0);  // exact first, then flat before sharp
+        if (rootRel == 6 && d == 1) cost = 5;                 // the tritone reads as #iv
+        if (cost < bestCost) { bestCost = cost; bestDegree = degree; bestAcc = d; }
+    }
+    if (bestDegree == 0) return false;
+    degreeOut = bestDegree;
+    accidentalOut = bestAcc;
+    return true;
+}
+
+ChordSpec withRootPitchClass(const Key& key, const ChordSpec& chord, int pitchClass) {
+    ChordSpec out = chord;
+    if (!spellRoot(key, pitchClass - key.tonic, out.degree, out.accidental)) return chord;
+    out.inversion = std::min(out.inversion, maxInversion(out));
+    return out.isValid() ? out : chord;
+}
+
+ChordSpec withQuality(const ChordSpec& chord, Quality quality) {
+    ChordSpec out = chord;
+    out.quality = quality;
+    if (!canSuspend(out)) out.suspension = Suspension::None;
+    out.inversion = std::min(out.inversion, maxInversion(out));
+    return out.isValid() ? out : chord;
+}
+
+ChordSpec withSeventhKind(const ChordSpec& chord, Seventh seventh) {
+    ChordSpec out = chord;
+    out.seventh = seventh;
+    if (seventh != Seventh::Minor && seventh != Seventh::Major) {
+        out.ninth = Ninth::None;
+        out.eleventh = Eleventh::None;
+        out.thirteenth = Thirteenth::None;
+    }
+    out.inversion = std::min(out.inversion, maxInversion(out));
+    return out.isValid() ? out : chord;
+}
+
 }  // namespace chordcore

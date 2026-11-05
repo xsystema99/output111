@@ -71,6 +71,18 @@ ChordSpec withSuspensionToggled(const ChordSpec& chord, Suspension suspension);
 /// Diminished and augmented chords have no third to replace in a way that reads as a suspension.
 bool canSuspend(const ChordSpec& chord);
 
+/// Spells a root `semitonesAboveTonic` (0..11) as a degree of the key's scale plus an accidental: the nearest
+/// degree, exact first, flats before sharps, and the tritone as a sharpened fourth (#iv). False if nothing within a semitone matches.
+bool spellRoot(const Key& key, int semitonesAboveTonic, int& degree, int& accidental);
+
+/// Inspector edits. Each returns a valid chord (the input unchanged when the request cannot be honoured) and keeps what
+/// it can: extensions, suspension and inversion are kept when they stay valid, otherwise cleared or clamped.
+/// New root as an absolute pitch class (0..11); quality and seventh follow the usual chord rules.
+ChordSpec withRootPitchClass(const Key& key, const ChordSpec& chord, int pitchClass);
+ChordSpec withQuality(const ChordSpec& chord, Quality quality);
+/// Seventh::None clears every extension; Minor/Major keep them; Diminished clears them (extensions need a minor or major seventh).
+ChordSpec withSeventhKind(const ChordSpec& chord, Seventh seventh);
+
 /// Switches the progression's scale (major <-> minor, same tonic). Chords that are diatonic to the old scale
 /// (including a diatonic seventh) follow the new scale; borrowed or altered chords are left as they are, so
 /// a deliberate V in minor stays V. No-op if the mode does not change.

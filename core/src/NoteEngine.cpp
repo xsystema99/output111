@@ -36,14 +36,17 @@ std::vector<NoteEvent> generateNotes(const Progression& progression, const Gener
     if (options.releaseGapTicks < 0) throw std::invalid_argument("releaseGapTicks must be >= 0");
 
     std::vector<NoteEvent> notes;
+    std::vector<EventOrigin> origins;
     const std::vector<VoicedChord> voiced = voiceProgression(progression, options.voicing, options.originalVoicing);
     for (std::size_t i = 0; i < progression.blocks.size(); ++i) {
         const auto& block = progression.blocks[i];
         const Tick length = std::max<Tick>(1, block.durationTicks - options.releaseGapTicks);
         for (const auto& n : voiced[i].notes) {
             notes.push_back(NoteEvent{n.pitch, block.startTick, length, options.velocity, options.channel});
+            origins.push_back(EventOrigin{i, n.voiceId, n.role});
         }
     }
+    if (options.performance != nullptr) options.performance->apply(progression, voiced, notes, origins);
 
     std::stable_sort(notes.begin(), notes.end(), [](const NoteEvent& a, const NoteEvent& b) {
         if (a.startTick != b.startTick) return a.startTick < b.startTick;

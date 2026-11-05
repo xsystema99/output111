@@ -54,10 +54,15 @@ struct ProjectExportOptions {
     int firstBar = 0;               ///< 0 / 0 = the whole project, otherwise bars first..last (1-based, inclusive)
     int lastBar = 0;
     bool writeKeySignature = true;
+    /// true = chords as originally voiced, ignoring every Chord Density setting ("Original Chords.mid"); false = as played.
+    bool originalVoicing = false;
 };
 
 /// Default file name for a part: "Chords.mid", "Melody.mid", "Combined.mid".
 const char* exportFileName(ExportPart part);
+/// Same, with the "Original " prefix when the chords are exported with their original voicing. There is no gated
+/// export yet ("Gated Chords.mid" will be added together with CHORD/GATE).
+std::string exportFileName(ExportPart part, bool originalVoicing);
 
 /// Exports the project from the same events that playback uses (generateNotes() for chords on the chord channel,
 /// generateMelodyNotes() for the melody on the melody channel). Mutes only affect live playback, never the export.

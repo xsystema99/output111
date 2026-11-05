@@ -3,6 +3,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chordcore/ChordEdit.h>
 #include <chordcore/ChromaticDice.h>
 #include <chordcore/Document.h>
 #include <chordcore/MelodyGenerator.h>
@@ -307,4 +308,33 @@ TEST_CASE("dice: settings persist and old projects load", "[dice][serialization]
     REQUIRE(loaded.ok);
     CHECK(loaded.progression.dice == p.dice);
     CHECK(loaded.progression == p);
+}
+
+TEST_CASE("inspector edits: root, quality and seventh keep a valid chord and the rest of the model", "[dice][chordedit]") {
+    const Key c{0, Mode::Major};
+    ChordSpec g7 = degreeChord(5);
+    g7.seventh = Seventh::Minor;
+    g7.inversion = 1;
+    for (int pc = 0; pc < 12; ++pc) {
+        const auto moved = withRootPitchClass(c, g7, pc);
+        CHECK(chordRootPitchClass(c, moved) == pc);
+        CHECK(moved.isValid());
+        CHECK(moved.quality == g7.quality);
+        CHECK(moved.seventh == g7.seventh);
+        CHECK(moved.inversion == 1);
+    }
+    CHECK(chordName(c, withRootPitchClass(c, ChordSpec{}, 8)) == "Ab");
+    CHECK(chordName(c, withRootPitchClass(c, ChordSpec{}, 6)) == "F#");
+    CHECK(withQuality(degreeChord(1), Quality::Minor).quality == Quality::Minor);
+    ChordSpec sus = degreeChord(1);
+    sus.suspension = Suspension::Sus4;
+    CHECK(withQuality(sus, Quality::Diminished).suspension == Suspension::None);
+    ChordSpec ninth = degreeChord(5);
+    ninth.seventh = Seventh::Minor;
+    ninth.ninth = Ninth::Major;
+    const auto triad = withSeventhKind(ninth, Seventh::None);
+    CHECK(triad.ninth == Ninth::None);
+    CHECK(triad.isValid());
+    CHECK(withSeventhKind(ninth, Seventh::Major).ninth == Ninth::Major);
+    CHECK(withSeventhKind(ninth, Seventh::Diminished).ninth == Ninth::None);
 }

@@ -220,6 +220,10 @@ const char* exportFileName(ExportPart part) {
     return "Combined.mid";
 }
 
+std::string exportFileName(ExportPart part, bool originalVoicing) {
+    return std::string(originalVoicing && part != ExportPart::Melody ? "Original " : "") + exportFileName(part);
+}
+
 std::vector<std::uint8_t> exportProject(const Progression& progression, const ProjectExportOptions& options,
                                         const GenerationOptions& generation) {
     checkProgression(progression);
@@ -231,6 +235,7 @@ std::vector<std::uint8_t> exportProject(const Progression& progression, const Pr
     // The same events playback uses; the chord channel comes from the project settings.
     GenerationOptions chordOptions = generation;
     chordOptions.channel = progression.melodySettings.chordChannel - 1;
+    chordOptions.originalVoicing = chordOptions.originalVoicing || options.originalVoicing;
     std::vector<NoteEvent> chords = generateNotes(progression, chordOptions);
     std::vector<NoteEvent> melody = generateMelodyNotes(progression);
     if (options.melodyOnChannel1) {
