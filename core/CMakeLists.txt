@@ -12,7 +12,8 @@ add_library(chordcore STATIC
     src/Timeline.cpp
     src/ChordEdit.cpp
     src/Preview.cpp
-    src/Grid.cpp)
+    src/Grid.cpp
+    src/Audition.cpp)
 
 target_include_directories(chordcore PUBLIC include)
 target_compile_features(chordcore PUBLIC cxx_std_17)

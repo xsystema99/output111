@@ -244,6 +244,25 @@ const char* toString(Ninth n) {
         case Ninth::None: return "none";
         case Ninth::Minor: return "minor";
         case Ninth::Major: return "major";
+        case Ninth::Sharp: return "sharp";
+    }
+    return "none";
+}
+
+const char* toString(Eleventh e) {
+    switch (e) {
+        case Eleventh::None: return "none";
+        case Eleventh::Perfect: return "perfect";
+        case Eleventh::Sharp: return "sharp";
+    }
+    return "none";
+}
+
+const char* toString(Thirteenth t) {
+    switch (t) {
+        case Thirteenth::None: return "none";
+        case Thirteenth::Minor: return "minor";
+        case Thirteenth::Major: return "major";
     }
     return "none";
 }
@@ -328,7 +347,9 @@ const std::pair<const char*, Seventh> kSevenths[] = {{"none", Seventh::None},
                                                      {"minor", Seventh::Minor},
                                                      {"major", Seventh::Major},
                                                      {"diminished", Seventh::Diminished}};
-const std::pair<const char*, Ninth> kNinths[] = {{"none", Ninth::None}, {"minor", Ninth::Minor}, {"major", Ninth::Major}};
+const std::pair<const char*, Ninth> kNinths[] = {{"none", Ninth::None}, {"minor", Ninth::Minor}, {"major", Ninth::Major}, {"sharp", Ninth::Sharp}};
+const std::pair<const char*, Eleventh> kElevenths[] = {{"none", Eleventh::None}, {"perfect", Eleventh::Perfect}, {"sharp", Eleventh::Sharp}};
+const std::pair<const char*, Thirteenth> kThirteenths[] = {{"none", Thirteenth::None}, {"minor", Thirteenth::Minor}, {"major", Thirteenth::Major}};
 const std::pair<const char*, Suspension> kSuspensions[] = {{"none", Suspension::None},
                                                            {"sus2", Suspension::Sus2},
                                                            {"sus4", Suspension::Sus4}};
@@ -360,6 +381,8 @@ std::string serializeProgression(const Progression& p) {
         out += ",\"inversion\":" + std::to_string(b.chord.inversion);
         out += std::string(",\"suspension\":\"") + toString(b.chord.suspension) + "\"";
         if (b.chord.ninth != Ninth::None) out += std::string(",\"ninth\":\"") + toString(b.chord.ninth) + "\"";
+        if (b.chord.eleventh != Eleventh::None) out += std::string(",\"eleventh\":\"") + toString(b.chord.eleventh) + "\"";
+        if (b.chord.thirteenth != Thirteenth::None) out += std::string(",\"thirteenth\":\"") + toString(b.chord.thirteenth) + "\"";
         out += ",\"startTick\":" + std::to_string(b.startTick);
         out += ",\"durationTicks\":" + std::to_string(b.durationTicks);
         if (b.octave != 0) out += ",\"octave\":" + std::to_string(b.octave);
@@ -443,6 +466,8 @@ DeserializeResult deserializeProgression(std::string_view text) {
             !r.narrowInt(b, path, "inversion", block.chord.inversion) ||
             !r.enumeration(b, path, "suspension", block.chord.suspension, kSuspensions, /*required=*/false) ||
             !r.enumeration(b, path, "ninth", block.chord.ninth, kNinths, /*required=*/false) ||
+            !r.enumeration(b, path, "eleventh", block.chord.eleventh, kElevenths, /*required=*/false) ||
+            !r.enumeration(b, path, "thirteenth", block.chord.thirteenth, kThirteenths, /*required=*/false) ||
             !r.integer(b, path, "startTick", start) || !r.integer(b, path, "durationTicks", duration) ||
             !r.narrowInt(b, path, "octave", block.octave, /*required=*/false)) {
             return fail(r.error);

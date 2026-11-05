@@ -245,6 +245,16 @@ Voicing, limits, names, numerals and edit rules are covered by automated tests (
 4. Select several chords (Shift-click) and press **+**: all of them change together, one Undo step. Changing the chord in the palette keeps its inversion.
 5. Export/drag the MIDI out: the inverted voicing matches what plays.
 
+## Manual test checklist: combined build (copy/paste, bar-range export, 11th/13th/alterations, audition, resizable window) — not yet run
+
+All of the music logic here is covered by automated tests (test_progressiontext, test_midifile [range], test_extensions, test_audition). What is NOT yet seen in Live: the buttons, the dialog, the audition sound and the window resizing. Please report each step.
+
+1. **Copy / Paste.** Build a progression with a 9th chord, an inversion, a chord octave and a gap. **Copy progression**, change the project, **Paste**: octaves, inversions and 9ths come back (text such as `V9(1):2@-2`).
+2. **Export a bar range.** Press **Export MIDI...**: a small window asks "From bar / To bar" (pre-filled with your selection's bars, or the whole project). Export bars 2-3 only, drag the file into Live: it starts at its own beat 1, and a chord that crosses the range edge is cut there. The exact rules are in core/include/chordcore/MidiFile.h.
+3. **Extensions.** New row under the chord buttons: **11th, 13th, b9, #9, #11, b13**. Select a V chord and press 13th: it adds the 7th and 9th, giving G13 (no 11); #11 gives G13#11; b9 / #9 change the 9th; pressing an alteration again undoes it. Names and numerals follow (G7#9, G9b13, V13). 11th/13th chords are root position only (the inversion buttons grey out). With both octave settings at +2 a B-rooted 13th would pass MIDI 127: the edit is refused with a message.
+4. **Palette audition.** With the DAW stopped, click a palette chord: you hear it briefly (about 0.8 s) from the track the plugin's MIDI goes to (same routing as Preview). It must not play while the DAW plays or Preview runs, and no note may hang.
+5. **Resizable window.** Drag the window's bottom-right corner: it grows (minimum 640 x 716); the extra height goes to the grid. Check that Live lets you resize it. The size is not remembered between sessions.
+
 ## Licensing
 
 JUCE is dual-licensed (AGPLv3 / commercial). Distributing a plugin built with JUCE requires either

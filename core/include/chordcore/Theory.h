@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 
 namespace chordcore {
@@ -25,9 +26,15 @@ enum class Seventh { None, Minor, Major, Diminished };
 /// The fifth still follows the chord quality; a seventh may be combined (e.g. V7sus4).
 enum class Suspension { None, Sus2, Sus4 };
 
-/// Ninth above the root, stacked on a seventh (Minor/Major seventh only; root position only).
-/// Value = interval in semitones: Minor 13 (flat 9), Major 14.
-enum class Ninth { None, Minor, Major };
+/// Extensions stacked on a minor or major seventh. Each value is the interval in semitones above the root:
+///   Ninth:      Minor 13 (flat 9), Major 14, Sharp 15 (sharp 9)
+///   Eleventh:   Perfect 17, Sharp 18 (sharp 11)
+///   Thirteenth: Minor 20 (flat 13), Major 21
+/// An eleventh or thirteenth needs a ninth below it, and a natural 11 and a natural 13 do not combine (a "13"
+/// chord leaves the 11 out). Chords with an 11th or 13th are root position only.
+enum class Ninth { None, Minor, Major, Sharp };
+enum class Eleventh { None, Perfect, Sharp };
+enum class Thirteenth { None, Minor, Major };
 
 /// A chord described relative to a key (key-independent until resolved with voiceChord()).
 struct ChordSpec {
@@ -38,18 +45,20 @@ struct ChordSpec {
     int inversion = 0;   ///< 0 = root position; see maxInversion(): 2 for triads and ninth chords, 3 for seventh chords
     Suspension suspension = Suspension::None;
     Ninth ninth = Ninth::None;  ///< needs a minor or major seventh
+    Eleventh eleventh = Eleventh::None;        ///< needs a ninth
+    Thirteenth thirteenth = Thirteenth::None;  ///< needs a ninth
 
     bool isValid() const noexcept;
 };
 
 /// Highest inversion the chord supports: 2 for a triad, 3 for a seventh chord, 2 for a ninth chord (a third
-/// inversion of a ninth chord could pass MIDI 127 at the extreme octave settings).
+/// inversion of a ninth chord could pass MIDI 127 at the extreme octave settings), 0 with an 11th or 13th.
 int maxInversion(const ChordSpec& chord) noexcept;
 
 inline bool operator==(const ChordSpec& a, const ChordSpec& b) noexcept {
     return a.degree == b.degree && a.accidental == b.accidental && a.quality == b.quality &&
            a.seventh == b.seventh && a.inversion == b.inversion && a.suspension == b.suspension &&
-           a.ninth == b.ninth;
+           a.ninth == b.ninth && a.eleventh == b.eleventh && a.thirteenth == b.thirteenth;
 }
 inline bool operator!=(const ChordSpec& a, const ChordSpec& b) noexcept { return !(a == b); }
 
@@ -58,6 +67,11 @@ struct VoicingOptions {
     /// Default 48 puts roots in MIDI 48..59 (C3..B3 in the "C3 = 60" naming used by Ableton: C2..B2).
     int rootBase = 48;
 };
+
+/// Chord-symbol text of the extensions, shared by chord names and Roman numerals: the highest natural extension
+/// (7, 9, 11 or 13) followed by the alterations b9 / #9, #11, b13, with "maj" in front for a major seventh:
+/// "9", "maj9", "7b9", "13#11", "9b13", "11". Empty when the chord has no extension.
+std::string extensionSymbol(const ChordSpec& chord);
 
 /// Semitones above the tonic of a scale degree (1..7) in the given mode. Throws std::invalid_argument.
 int scaleDegreeSemitones(Mode mode, int degree);

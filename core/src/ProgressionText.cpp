@@ -50,10 +50,27 @@ ParseProgressionResult parseProgressionText(std::string_view text, const TimeSig
 
         std::string_view symbol = token;
         Tick length = bar;
-        const auto colon = token.rfind(':');
+        int octave = 0;
+        std::string_view body = token;
+        const auto at = token.rfind('@');
+        if (at != std::string_view::npos) {  // optional chord octave shift: @+1, @-2
+            std::string_view octaveText = token.substr(at + 1);
+            body = token.substr(0, at);
+            bool negative = false;
+            if (!octaveText.empty() && (octaveText.front() == '+' || octaveText.front() == '-')) {
+                negative = octaveText.front() == '-';
+                octaveText.remove_prefix(1);
+            }
+            if (octaveText.size() != 1 || octaveText[0] < '0' || octaveText[0] > '0' + kMaxOctaveShift) {
+                return fail("bad octave in '" + std::string(token) + "' (expected @-2 to @+2)");
+            }
+            octave = (octaveText[0] - '0') * (negative ? -1 : 1);
+        }
+        symbol = body;
+        const auto colon = body.rfind(':');
         if (colon != std::string_view::npos) {
-            symbol = token.substr(0, colon);
-            const std::string_view lengthText = token.substr(colon + 1);
+            symbol = body.substr(0, colon);
+            const std::string_view lengthText = body.substr(colon + 1);
             double bars = 0.0;
             const auto r = std::from_chars(lengthText.data(), lengthText.data() + lengthText.size(), bars);
             if (lengthText.empty() || r.ec != std::errc() || r.ptr != lengthText.data() + lengthText.size() ||
@@ -71,7 +88,9 @@ ParseProgressionResult parseProgressionText(std::string_view text, const TimeSig
 
         const auto chord = parseRomanNumeral(symbol);
         if (!chord.ok) return fail("'" + std::string(token) + "': " + chord.error);
-        result.blocks.push_back(ChordBlock{chord.chord, cursor, length});
+        ChordBlock block{chord.chord, cursor, length};
+        block.octave = octave;
+        result.blocks.push_back(block);
         cursor += length;
     }
 
@@ -100,6 +119,7 @@ std::string formatProgressionText(const Progression& progression) {
         const auto symbol = formatRomanNumeral(block.chord);
         std::string token = symbol ? *symbol : std::string("?");
         if (block.durationTicks != bar) token += ":" + barsText(block.durationTicks, bar);
+        if (block.octave != 0) token += std::string("@") + (block.octave > 0 ? "+" : "-") + std::to_string(std::abs(block.octave));
         append(token);
         cursor = block.endTick();
     }

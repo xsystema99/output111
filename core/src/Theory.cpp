@@ -23,6 +23,7 @@ int seventhInterval(Seventh s) {
 }  // namespace
 
 int maxInversion(const ChordSpec& chord) noexcept {
+    if (chord.eleventh != Eleventh::None || chord.thirteenth != Thirteenth::None) return 0;
     if (chord.ninth != Ninth::None) return 2;
     return chord.seventh == Seventh::None ? 2 : 3;
 }
@@ -30,8 +31,26 @@ int maxInversion(const ChordSpec& chord) noexcept {
 bool ChordSpec::isValid() const noexcept {
     if (degree < 1 || degree > 7) return false;
     if (accidental < -1 || accidental > 1) return false;
-    if (ninth != Ninth::None && seventh != Seventh::Minor && seventh != Seventh::Major) return false;
+    const bool anyExtension = ninth != Ninth::None || eleventh != Eleventh::None || thirteenth != Thirteenth::None;
+    if (anyExtension && seventh != Seventh::Minor && seventh != Seventh::Major) return false;
+    if ((eleventh != Eleventh::None || thirteenth != Thirteenth::None) && ninth == Ninth::None) return false;
+    if (eleventh == Eleventh::Perfect && thirteenth == Thirteenth::Major) return false;  // not expressible: "13" omits the 11
     return inversion >= 0 && inversion <= maxInversion(*this);
+}
+
+std::string extensionSymbol(const ChordSpec& chord) {
+    if (chord.ninth == Ninth::None && chord.eleventh == Eleventh::None && chord.thirteenth == Thirteenth::None) return {};
+    std::string top = "7";
+    if (chord.thirteenth == Thirteenth::Major) top = "13";
+    else if (chord.eleventh == Eleventh::Perfect) top = "11";
+    else if (chord.ninth == Ninth::Major) top = "9";
+    std::string text = chord.seventh == Seventh::Major ? "maj" : "";
+    text += top;
+    if (chord.ninth == Ninth::Minor) text += "b9";
+    if (chord.ninth == Ninth::Sharp) text += "#9";
+    if (chord.eleventh == Eleventh::Sharp) text += "#11";
+    if (chord.thirteenth == Thirteenth::Minor) text += "b13";
+    return text;
 }
 
 int scaleDegreeSemitones(Mode mode, int degree) {
@@ -58,6 +77,11 @@ std::vector<int> chordIntervals(const ChordSpec& chord) {
     if (chord.seventh != Seventh::None) intervals.push_back(seventhInterval(chord.seventh));
     if (chord.ninth == Ninth::Minor) intervals.push_back(13);
     if (chord.ninth == Ninth::Major) intervals.push_back(14);
+    if (chord.ninth == Ninth::Sharp) intervals.push_back(15);
+    if (chord.eleventh == Eleventh::Perfect) intervals.push_back(17);
+    if (chord.eleventh == Eleventh::Sharp) intervals.push_back(18);
+    if (chord.thirteenth == Thirteenth::Minor) intervals.push_back(20);
+    if (chord.thirteenth == Thirteenth::Major) intervals.push_back(21);
     return intervals;
 }
 

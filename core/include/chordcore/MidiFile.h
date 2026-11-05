@@ -35,4 +35,13 @@ std::vector<std::uint8_t> exportProgressionToMidi(const Progression& progression
                                                   const GenerationOptions& generation = {},
                                                   const MidiExportOptions& options = {});
 
+/// Exports bars firstBar..lastBar (1-based, inclusive) as their own file starting at tick 0: the same notes the
+/// whole-project export would contain, shifted so firstBar begins at tick 0. A note that starts before the range
+/// but sounds into it is kept from the range start; a note running past the range end is cut there; notes
+/// wholly outside are dropped. The end-of-track is at the end of lastBar. Throws std::invalid_argument for a
+/// range that is empty, starts before bar 1, or is past 256 bars.
+std::vector<std::uint8_t> exportProgressionRangeToMidi(const Progression& progression, int firstBar, int lastBar,
+                                                       const GenerationOptions& generation = {},
+                                                       const MidiExportOptions& options = {});
+
 }  // namespace chordcore

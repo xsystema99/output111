@@ -7,6 +7,7 @@
 #include <string>
 
 #include <chordcore/Document.h>
+#include <chordcore/Audition.h>
 #include <chordcore/Preview.h>
 #include <chordcore/Progression.h>
 #include <chordcore/Scheduler.h>
@@ -53,6 +54,11 @@ public:
     bool isPreviewRequested() const noexcept { return previewRequested.load(); }
     bool isPreviewRunning() const noexcept { return previewRunning.load(); }
 
+    /// Plays `chord` once through the MIDI output (about 0.8 s), e.g. when a palette chord is clicked. Voiced by the
+    /// same note engine as playback and export, at the project octave plus `blockOctave`. Ignored while the host
+    /// plays or Preview runs. Message thread.
+    void auditionChord(const chordcore::ChordSpec& chord, int blockOctave);
+
     // ---- project access (any non-audio thread)
     /// A copy of the current progression.
     chordcore::Progression getProgression() const;
@@ -74,7 +80,9 @@ public:
 
     /// Builds the Standard MIDI File for the current progression via chordcore's single export path.
     /// Throws std::exception on failure.
-    std::vector<std::uint8_t> exportMidiBytes() const;
+    /// firstBar/lastBar 0 = the whole project; otherwise bars firstBar..lastBar (1-based, inclusive) as their own
+    /// file (chordcore::exportProgressionRangeToMidi). Throws std::invalid_argument for a bad range.
+    std::vector<std::uint8_t> exportMidiBytes(int firstBar = 0, int lastBar = 0) const;
 
     // ---- juce::AudioProcessor
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
@@ -119,6 +127,9 @@ private:
     std::atomic<bool> previewRequested{false};
     std::atomic<bool> previewRunning{false};
     std::atomic<double> previewEndPpq{0.0};  // end of the last chord in quarter notes, written under documentLock
+
+    juce::SpinLock auditionLock;
+    chordcore::AuditionPlayer audition;  // guarded by auditionLock
 
     std::atomic<bool> playheadValid{false};
     std::atomic<bool> playheadPlaying{false};

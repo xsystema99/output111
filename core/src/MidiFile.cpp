@@ -161,4 +161,30 @@ std::vector<std::uint8_t> exportProgressionToMidi(const Progression& progression
     return buildMidiFile(progression, generateNotes(progression, generation), options);
 }
 
+std::vector<std::uint8_t> exportProgressionRangeToMidi(const Progression& progression, int firstBar, int lastBar,
+                                                       const GenerationOptions& generation,
+                                                       const MidiExportOptions& options) {
+    if (firstBar < 1 || lastBar < firstBar || lastBar > kMaxLengthBars) {
+        throw std::invalid_argument("bar range must satisfy 1 <= first <= last <= 256");
+    }
+    const Tick bar = progression.timeSignature.ticksPerBar();
+    const Tick from = static_cast<Tick>(firstBar - 1) * bar;
+    const Tick to = static_cast<Tick>(lastBar) * bar;
+
+    std::vector<NoteEvent> clipped;
+    for (NoteEvent n : generateNotes(progression, generation)) {  // the one note generator
+        const Tick end = n.startTick + n.lengthTicks;
+        if (end <= from || n.startTick >= to) continue;
+        const Tick start = std::max(n.startTick, from);
+        n.lengthTicks = std::min(end, to) - start;
+        n.startTick = start - from;
+        clipped.push_back(n);
+    }
+
+    Progression header = progression;  // tempo, meter and key only; its length defines the end-of-track
+    header.blocks.clear();
+    header.lengthBars = lastBar - firstBar + 1;
+    return buildMidiFile(header, clipped, options);
+}
+
 }  // namespace chordcore

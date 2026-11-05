@@ -45,6 +45,22 @@ Ninth diatonicNinth(Mode mode, int degree);
 /// the inversion where the ninth chord allows it; turning it off leaves the seventh chord.
 ChordSpec withNinthToggled(Mode mode, const ChordSpec& chord);
 
+/// Eleventh / thirteenth native to that degree's scale notes (the 11th can be the sharp 11, e.g. IV in major).
+Eleventh diatonicEleventh(Mode mode, int degree);
+Thirteenth diatonicThirteenth(Mode mode, int degree);
+
+/// "11th" / "13th" buttons. Turning one on adds what it needs below it (the diatonic seventh and ninth) and
+/// returns the chord to root position; a natural 13 replaces a natural 11 and the other way round. Turning it off
+/// removes just that extension.
+ChordSpec withEleventhToggled(Mode mode, const ChordSpec& chord);
+ChordSpec withThirteenthToggled(Mode mode, const ChordSpec& chord);
+
+enum class Alteration { FlatNine, SharpNine, SharpEleven, FlatThirteen };
+
+/// b9 / #9 / #11 / b13 buttons. Adds the seventh and the notes below it if missing. Pressing again undoes the
+/// alteration: b9 and #9 return to the natural 9th; #11 and b13 remove that note.
+ChordSpec withAlterationToggled(Mode mode, const ChordSpec& chord, Alteration alteration);
+
 /// Sets the inversion, clamped to 0..maxInversion(chord).
 ChordSpec withInversion(const ChordSpec& chord, int inversion);
 

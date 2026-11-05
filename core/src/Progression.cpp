@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 namespace chordcore {
 
@@ -37,6 +38,18 @@ std::vector<std::string> Progression::validate() const {
         if (block.startTick < 0) errors.push_back(where + "start must be >= 0");
         if (block.durationTicks < 1) errors.push_back(where + "duration must be >= 1 tick");
         if (block.octave < -kMaxOctaveShift || block.octave > kMaxOctaveShift) errors.push_back(where + "octave must be between -2 and +2");
+
+        // Every voiced note must fit MIDI 0..127 (a 13th chord at the highest octave settings can pass 127).
+        if (key.isValid() && block.chord.isValid() && block.octave >= -kMaxOctaveShift && block.octave <= kMaxOctaveShift &&
+            octave >= -kMaxOctaveShift && octave <= kMaxOctaveShift) {
+            VoicingOptions voicing;
+            voicing.rootBase += 12 * (octave + block.octave);  // as in generateNotes
+            try {
+                (void)voiceChord(key, block.chord, voicing);
+            } catch (const std::out_of_range&) {
+                errors.push_back(where + "this chord would go outside the MIDI note range at this octave; lower the octave or simplify the chord");
+            }
+        }
     }
 
     // Overlap check on a start-sorted copy of the indices.

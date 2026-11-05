@@ -31,6 +31,7 @@ void styleCombo(juce::ComboBox& box) {
 }
 
 constexpr int kPaletteDegrees = 7;
+constexpr int kBaseWidth = 640, kBaseHeight = 716;  // the smallest size: the layout below is tuned for it
 
 }  // namespace
 
@@ -187,10 +188,31 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
             prog.blocks.at(i).chord = withNinthToggled(prog.key.mode, prog.blocks.at(i).chord);
         });
     };
+    eleventhButton.onClick = [this] {
+        applyToSelected("Toggle 11th", [](Progression& prog, std::size_t i) {
+            prog.blocks.at(i).chord = withEleventhToggled(prog.key.mode, prog.blocks.at(i).chord);
+        });
+    };
+    thirteenthButton.onClick = [this] {
+        applyToSelected("Toggle 13th", [](Progression& prog, std::size_t i) {
+            prog.blocks.at(i).chord = withThirteenthToggled(prog.key.mode, prog.blocks.at(i).chord);
+        });
+    };
+    const std::pair<ui::StyledButton*, Alteration> alterations[] = {{&flat9Button, Alteration::FlatNine}, {&sharp9Button, Alteration::SharpNine},
+                                                                    {&sharp11Button, Alteration::SharpEleven}, {&flat13Button, Alteration::FlatThirteen}};
+    for (const auto& entry : alterations) {
+        const Alteration alteration = entry.second;
+        entry.first->onClick = [this, alteration] {
+            applyToSelected("Alter chord", [alteration](Progression& prog, std::size_t i) {
+                prog.blocks.at(i).chord = withAlterationToggled(prog.key.mode, prog.blocks.at(i).chord, alteration);
+            });
+        };
+    }
     splitButton.onClick = [this] { splitClicked(); };
     duplicateButton.onClick = [this] { duplicateClicked(); };
     deleteButton.onClick = [this] { deleteClicked(); };
-    for (auto* b : {&triadButton, &seventhButton, &ninthButton, &sus2Button, &sus4Button, &splitButton, &duplicateButton, &deleteButton}) {
+    for (auto* b : {&triadButton, &seventhButton, &ninthButton, &sus2Button, &sus4Button, &eleventhButton, &thirteenthButton, &flat9Button,
+                    &sharp9Button, &sharp11Button, &flat13Button, &splitButton, &duplicateButton, &deleteButton}) {
         addAndMakeVisible(*b);
     }
 
@@ -224,7 +246,9 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     styleLabel(statusLabel, 12.0f, false, ui::mutedTextColour());
     for (auto* c : std::initializer_list<juce::Component*>{&previewButton, &dragHandle, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
 
-    setSize(640, 676);
+    setResizeLimits(kBaseWidth, kBaseHeight, 1600, 1200);
+    setResizable(true, true);  // the corner handle; extra room goes to the grid
+    setSize(kBaseWidth, kBaseHeight);
     refreshFromModel();
     chordProcessor.changes().addChangeListener(this);
     startTimerHz(15);
@@ -292,7 +316,8 @@ void ChordSketchEditor::resized() {
     fitButton.setBounds(timelineHeader.removeFromLeft(48));
     timelineHint.setBounds(timelineHeader.withTrimmedLeft(8));
     area.removeFromTop(6);
-    timeline.setBounds(area.removeFromTop(150));
+    // a taller window gives its extra height to the grid
+    timeline.setBounds(area.removeFromTop(150 + std::max(0, getHeight() - kBaseHeight)));
     area.removeFromTop(16);
 
     // palette
@@ -331,6 +356,12 @@ void ChordSketchEditor::resized() {
     duplicateButton.setBounds(pills.removeFromRight(84));
     pills.removeFromRight(8);
     splitButton.setBounds(pills.removeFromRight(64));
+    area.removeFromTop(6);
+    auto extensions = area.removeFromTop(34);
+    for (auto* b : {&eleventhButton, &thirteenthButton, &flat9Button, &sharp9Button, &sharp11Button, &flat13Button}) {
+        b->setBounds(extensions.removeFromLeft(b == &eleventhButton || b == &thirteenthButton ? 64 : 56));
+        extensions.removeFromLeft(8);
+    }
     area.removeFromTop(26);
 
     // tools
@@ -424,7 +455,8 @@ void ChordSketchEditor::refreshFromModel() {
     // selected chord
     selectedName.setText(current != nullptr ? juce::String(chordName(model.key, *current)) : juce::String(juce::CharPointer_UTF8("\xE2\x80\x93")),
                          juce::dontSendNotification);
-    for (auto* b : {&triadButton, &seventhButton, &ninthButton, &splitButton, &duplicateButton, &deleteButton}) b->setEnabled(hasSelection);
+    for (auto* b : {&triadButton, &seventhButton, &ninthButton, &eleventhButton, &thirteenthButton, &flat9Button, &sharp9Button, &sharp11Button,
+                    &flat13Button, &splitButton, &duplicateButton, &deleteButton}) b->setEnabled(hasSelection);
     const int chordOctave = hasSelection ? model.blocks[static_cast<std::size_t>(selected)].octave : 0;
     chordOctaveLabel.setText(hasSelection ? "Octave " + juce::String(chordOctave > 0 ? "+" : "") + juce::String(chordOctave) : juce::String("Octave"),
                              juce::dontSendNotification);
@@ -442,6 +474,12 @@ void ChordSketchEditor::refreshFromModel() {
     triadButton.setToggleState(current != nullptr && current->seventh == Seventh::None && current->suspension == Suspension::None, juce::dontSendNotification);
     seventhButton.setToggleState(current != nullptr && current->seventh != Seventh::None && current->ninth == Ninth::None, juce::dontSendNotification);
     ninthButton.setToggleState(current != nullptr && current->ninth != Ninth::None, juce::dontSendNotification);
+    eleventhButton.setToggleState(current != nullptr && current->eleventh != Eleventh::None, juce::dontSendNotification);
+    thirteenthButton.setToggleState(current != nullptr && current->thirteenth != Thirteenth::None, juce::dontSendNotification);
+    flat9Button.setToggleState(current != nullptr && current->ninth == Ninth::Minor, juce::dontSendNotification);
+    sharp9Button.setToggleState(current != nullptr && current->ninth == Ninth::Sharp, juce::dontSendNotification);
+    sharp11Button.setToggleState(current != nullptr && current->eleventh == Eleventh::Sharp, juce::dontSendNotification);
+    flat13Button.setToggleState(current != nullptr && current->thirteenth == Thirteenth::Minor, juce::dontSendNotification);
     sus2Button.setToggleState(current != nullptr && current->suspension == Suspension::Sus2, juce::dontSendNotification);
     sus4Button.setToggleState(current != nullptr && current->suspension == Suspension::Sus4, juce::dontSendNotification);
 
@@ -468,6 +506,15 @@ void ChordSketchEditor::applyToSelected(const std::string& label,
 
 void ChordSketchEditor::paletteClicked(int degree) {
     insertDegree = degree;
+    {  // audition what the click produces (the selected chord re-targeted to this degree, or the plain diatonic chord)
+        const auto indices = timeline.getSelection();
+        if (!indices.empty() && indices.back() < model.blocks.size()) {
+            const auto& block = model.blocks[timeline.getPrimary() >= 0 ? static_cast<std::size_t>(timeline.getPrimary()) : indices.back()];
+            chordProcessor.auditionChord(withDegree(model.key.mode, block.chord, degree), block.octave);
+        } else {
+            chordProcessor.auditionChord(diatonicChord(model.key.mode, degree), 0);
+        }
+    }
     timeline.setInsertChord(diatonicChord(model.key.mode, degree));
     if (timeline.getSelection().empty()) {
         setStatus("Armed " + juce::String(chordName(model.key, diatonicChord(model.key.mode, degree))) + ": click the grid to insert it.");
@@ -558,6 +605,41 @@ void ChordSketchEditor::pasteClicked() {
 }
 
 void ChordSketchEditor::exportMidiClicked() {
+    // Ask for the bars first. The range starts as the selected chords' span (or the whole project).
+    const Tick bar = model.timeSignature.ticksPerBar();
+    const int totalBars = std::max(1, static_cast<int>((model.lengthTicks() + bar - 1) / bar));
+    int firstBar = 1, lastBar = totalBars;
+    const auto selection = timeline.getSelection();
+    if (!selection.empty()) {
+        Tick first = model.blocks[selection.front()].startTick, last = model.blocks[selection.front()].endTick();
+        for (auto i : selection) {
+            first = std::min(first, model.blocks[i].startTick);
+            last = std::max(last, model.blocks[i].endTick());
+        }
+        firstBar = static_cast<int>(first / bar) + 1;
+        lastBar = static_cast<int>((last - 1) / bar) + 1;
+    }
+
+    auto* window = new juce::AlertWindow("Export MIDI", "Bars to export (the whole project is bars 1 to " + juce::String(totalBars) + ").",
+                                         juce::MessageBoxIconType::NoIcon);
+    window->addTextEditor("from", juce::String(firstBar), "From bar:");
+    window->addTextEditor("to", juce::String(lastBar), "To bar:");
+    window->addButton("Choose file...", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    window->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    juce::Component::SafePointer<ChordSketchEditor> safeThis(this);
+    window->enterModalState(true, juce::ModalCallbackFunction::create([safeThis, window, totalBars](int result) {
+        if (result != 1 || safeThis == nullptr) return;
+        const int from = window->getTextEditorContents("from").getIntValue();
+        const int to = window->getTextEditorContents("to").getIntValue();
+        if (from < 1 || to < from || to > kMaxLengthBars) {
+            safeThis->setStatus("Bar range not valid: use 1 to " + juce::String(std::max(totalBars, 1)) + " (first bar not after the last).");
+            return;
+        }
+        safeThis->chooseExportFile(from, to);
+    }), true);
+}
+
+void ChordSketchEditor::chooseExportFile(int firstBar, int lastBar) {
     const auto defaultFile =
         juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("ChordSketch.mid");
 
@@ -567,18 +649,18 @@ void ChordSketchEditor::exportMidiClicked() {
 
     // SafePointer: the host may close the editor while the dialog is open.
     juce::Component::SafePointer<ChordSketchEditor> safeThis(this);
-    fileChooser->launchAsync(chooserFlags, [safeThis](const juce::FileChooser& chooser) {
+    fileChooser->launchAsync(chooserFlags, [safeThis, firstBar, lastBar](const juce::FileChooser& chooser) {
         if (safeThis == nullptr) return;
         auto file = chooser.getResult();
         if (file == juce::File()) return;  // cancelled
         if (!file.hasFileExtension("mid")) file = file.withFileExtension("mid");
-        safeThis->writeMidiTo(file);
+        safeThis->writeMidiTo(file, firstBar, lastBar);
     });
 }
 
-void ChordSketchEditor::writeMidiTo(const juce::File& file) {
+void ChordSketchEditor::writeMidiTo(const juce::File& file, int firstBar, int lastBar) {
     try {
-        const auto bytes = chordProcessor.exportMidiBytes();
+        const auto bytes = chordProcessor.exportMidiBytes(firstBar, lastBar);
         if (file.replaceWithData(bytes.data(), bytes.size())) {
             setStatus("Wrote " + juce::String((int) bytes.size()) + " bytes to " + file.getFullPathName());
         } else {

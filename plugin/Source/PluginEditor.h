@@ -54,7 +54,8 @@ private:
     void copyClicked();
     void pasteClicked();
     void exportMidiClicked();
-    void writeMidiTo(const juce::File& file);
+    void writeMidiTo(const juce::File& file, int firstBar, int lastBar);
+    void chooseExportFile(int firstBar, int lastBar);
     juce::File writeDragFile(juce::String& error);
 
     ChordSketchProcessor& chordProcessor;
@@ -92,6 +93,12 @@ private:
     ui::StyledButton ninthButton{"9th", ui::StyledButton::Look::Pill};
     ui::StyledButton sus2Button{"Sus2", ui::StyledButton::Look::Pill};
     ui::StyledButton sus4Button{"Sus4", ui::StyledButton::Look::Pill};
+    ui::StyledButton eleventhButton{"11th", ui::StyledButton::Look::Pill};
+    ui::StyledButton thirteenthButton{"13th", ui::StyledButton::Look::Pill};
+    ui::StyledButton flat9Button{"b9", ui::StyledButton::Look::Pill};
+    ui::StyledButton sharp9Button{"#9", ui::StyledButton::Look::Pill};
+    ui::StyledButton sharp11Button{"#11", ui::StyledButton::Look::Pill};
+    ui::StyledButton flat13Button{"b13", ui::StyledButton::Look::Pill};
     ui::StyledButton splitButton{"Split", ui::StyledButton::Look::Outline, 13.0f};
     ui::StyledButton duplicateButton{"Duplicate", ui::StyledButton::Look::Outline, 13.0f};
     ui::StyledButton deleteButton{"Delete", ui::StyledButton::Look::Outline, 13.0f};

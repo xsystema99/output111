@@ -8,8 +8,8 @@
 
 namespace chordcore {
 
-/// Octave shifts (project-wide and per chord) are limited to +-2 octaves each, which keeps every voicing
-/// inside MIDI 0..127 whatever the key, inversion or seventh.
+/// Octave shifts (project-wide and per chord) are limited to +-2 octaves each. Progression::validate() also
+/// rejects any chord whose voicing would leave MIDI 0..127 (only possible for 13th chords at the extreme octaves).
 constexpr int kMaxOctaveShift = 2;
 
 /// Longest project length that can be requested, in bars (the editor's timeline limit).

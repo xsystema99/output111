@@ -475,3 +475,62 @@ TEST_CASE("property: random progressions round-trip through the independent pars
         REQUIRE(end[0]->tick % static_cast<std::uint64_t>(p.timeSignature.ticksPerBar()) == 0);
     }
 }
+
+// ------------------------------------------------------------------------------------------ bar range export
+
+TEST_CASE("range export: selects bars, shifts to tick 0, clips crossing notes", "[midi][range]") {
+    Progression p;
+    // bar 1: I (1 bar); bars 2-3: V (2 bars, crosses the end of a bar-2-only export); bar 4: vi
+    p.blocks = {{ChordSpec{1, 0, Quality::Major, Seventh::None, 0, Suspension::None}, 0, 3840},
+                {ChordSpec{5, 0, Quality::Major, Seventh::None, 0, Suspension::None}, 3840, 7680},
+                {ChordSpec{6, 0, Quality::Minor, Seventh::None, 0, Suspension::None}, 11520, 3840}};
+    REQUIRE(p.validate().empty());
+    const auto all = generateNotes(p);
+
+    // bars 2-3: exactly the V chord, moved to tick 0, length two bars
+    {
+        const auto file = smf::parse(exportProgressionRangeToMidi(p, 2, 3));
+        const auto notes = smf::extractNotes(file.tracks[0]);
+        REQUIRE(notes.size() == 3);
+        for (const auto& n : notes) { CHECK(n.start == 0); CHECK(n.length == 7680); }
+        const auto end = file.tracks[0].events.back();
+        CHECK(end.tick == 7680);
+    }
+    // bar 3 alone: the V chord continues into it, so it is cut to the bar and starts at 0
+    {
+        const auto notes = smf::extractNotes(smf::parse(exportProgressionRangeToMidi(p, 3, 3)).tracks[0]);
+        REQUIRE(notes.size() == 3);
+        for (const auto& n : notes) { CHECK(n.start == 0); CHECK(n.length == 3840); }
+    }
+    // bar 2 alone: cut at the end of the bar
+    {
+        const auto notes = smf::extractNotes(smf::parse(exportProgressionRangeToMidi(p, 2, 2)).tracks[0]);
+        for (const auto& n : notes) { CHECK(n.start == 0); CHECK(n.length == 3840); }
+    }
+    // the whole project as a range equals the plain export's notes
+    {
+        const auto notes = smf::extractNotes(smf::parse(exportProgressionRangeToMidi(p, 1, 4)).tracks[0]);
+        REQUIRE(notes.size() == all.size());
+        for (std::size_t i = 0; i < notes.size(); ++i) {
+            CHECK(static_cast<Tick>(notes[i].start) == all[i].startTick);
+            CHECK(static_cast<Tick>(notes[i].length) == all[i].lengthTicks);
+        }
+    }
+    // a range with no chords is a valid empty file with the right length
+    {
+        const auto file = smf::parse(exportProgressionRangeToMidi(p, 6, 7));
+        CHECK(smf::extractNotes(file.tracks[0]).empty());
+        CHECK(file.tracks[0].events.back().tick == 2 * 3840);
+    }
+    CHECK_THROWS_AS(exportProgressionRangeToMidi(p, 0, 2), std::invalid_argument);
+    CHECK_THROWS_AS(exportProgressionRangeToMidi(p, 3, 2), std::invalid_argument);
+    CHECK_THROWS_AS(exportProgressionRangeToMidi(p, 1, 257), std::invalid_argument);
+}
+
+TEST_CASE("range export: syncopated chord keeps its exact offset inside the range", "[midi][range]") {
+    Progression p;
+    p.blocks = {{ChordSpec{1, 0, Quality::Major, Seventh::None, 0, Suspension::None}, 3840 + 1440, 960}};  // "&" of beat 2 in bar 2
+    const auto notes = smf::extractNotes(smf::parse(exportProgressionRangeToMidi(p, 2, 2)).tracks[0]);
+    REQUIRE(notes.size() == 3);
+    for (const auto& n : notes) { CHECK(n.start == 1440); CHECK(n.length == 960); }
+}

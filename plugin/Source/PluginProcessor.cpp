@@ -99,12 +99,36 @@ std::string ChordSketchProcessor::getLastLoadError() const {
     return lastLoadError;
 }
 
-std::vector<std::uint8_t> ChordSketchProcessor::exportMidiBytes() const {
-    return chordcore::exportProgressionToMidi(getProgression());
+std::vector<std::uint8_t> ChordSketchProcessor::exportMidiBytes(int firstBar, int lastBar) const {
+    if (firstBar == 0 && lastBar == 0) return chordcore::exportProgressionToMidi(getProgression());
+    return chordcore::exportProgressionRangeToMidi(getProgression(), firstBar, lastBar);
+}
+
+void ChordSketchProcessor::auditionChord(const chordcore::ChordSpec& chord, int blockOctave) {
+    try {
+        chordcore::Progression p = getProgression();
+        p.blocks.clear();
+        chordcore::ChordBlock block;
+        block.chord = chord;
+        block.startTick = 0;
+        block.durationTicks = p.timeSignature.ticksPerBar();
+        block.octave = blockOctave;
+        p.blocks.push_back(block);
+        std::vector<int> pitches;
+        for (const auto& n : chordcore::generateNotes(p)) pitches.push_back(n.pitch);  // the one note generator
+        const juce::SpinLock::ScopedLockType lock(auditionLock);
+        audition.request(std::move(pitches), 96, 0);
+    } catch (const std::exception&) {
+        // An invalid or out-of-range chord is simply not auditioned.
+    }
 }
 
 void ChordSketchProcessor::prepareToPlay(double sampleRate, int) {
     currentSampleRate = sampleRate;
+    {
+        const juce::SpinLock::ScopedLockType lock(auditionLock);
+        audition.reset();
+    }
     const juce::SpinLock::ScopedLockType lock(schedulerLock);
     scheduler.reset();
     preview.reset();
@@ -146,6 +170,19 @@ void ChordSketchProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
                 havePosition = true;
                 const auto bpm = position->getBpm();
                 if (bpm.hasValue()) block.bpm = *bpm;
+            }
+        }
+    }
+
+    // Audition (palette click): only while nothing else plays, so it never doubles or cuts the transport's notes.
+    {
+        const juce::SpinLock::ScopedTryLockType auditionTry(auditionLock);
+        if (auditionTry.isLocked()) {
+            if (block.playing || previewRequested.load() || previewRunning.load()) audition.stopAll();
+            for (const auto& e : audition.process(block.numSamples, currentSampleRate)) {
+                midi.addEvent(e.noteOn ? juce::MidiMessage::noteOn(e.channel + 1, e.pitch, (juce::uint8) e.velocity)
+                                       : juce::MidiMessage::noteOff(e.channel + 1, e.pitch, (juce::uint8) 0),
+                              e.sampleOffset);
             }
         }
     }

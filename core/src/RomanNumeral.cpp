@@ -22,16 +22,45 @@ struct Figure {
     bool seventh;
     int inversion;
     bool majorSeventh;
-    Ninth ninth = Ninth::None;
 };
 
 constexpr Figure kFigures[] = {
     {"6", false, 1, false},   {"64", false, 2, false}, {"7", true, 0, false},
     {"65", true, 1, false},   {"43", true, 2, false},  {"42", true, 3, false},
     {"2", true, 3, false},    {"maj7", true, 0, true}, {"M7", true, 0, true},
-    {"9", true, 0, false, Ninth::Major},     {"maj9", true, 0, true, Ninth::Major},
-    {"7b9", true, 0, false, Ninth::Minor},   {"maj7b9", true, 0, true, Ninth::Minor},
 };
+
+/// Extension figures: [maj|M] 7 | 9 | 11 | 13, then any of b9 #9 #11 b13 (e.g. "9", "maj9", "7b9", "13#11").
+/// The number implies the natural notes below it (9 = 7+9, 11 = 7+9+11, 13 = 7+9+13); the alterations then set
+/// or replace individual notes. Fills the seventh and extension fields of `chord`; false if `text` is not one.
+bool parseExtension(std::string_view text, ChordSpec& chord, bool& majorSeventh) {
+    majorSeventh = false;
+    if (text.substr(0, 3) == "maj") { majorSeventh = true; text.remove_prefix(3); }
+    else if (!text.empty() && text.front() == 'M') { majorSeventh = true; text.remove_prefix(1); }
+
+    int number = 0;
+    for (const char* candidate : {"13", "11", "9", "7"}) {
+        const std::string_view c(candidate);
+        if (text.substr(0, c.size()) == c) { number = std::stoi(candidate); text.remove_prefix(c.size()); break; }
+    }
+    if (number == 0) return false;
+
+    chord.ninth = number >= 9 ? Ninth::Major : Ninth::None;
+    chord.eleventh = number == 11 ? Eleventh::Perfect : Eleventh::None;
+    chord.thirteenth = number == 13 ? Thirteenth::Major : Thirteenth::None;
+
+    bool flatNine = false, sharpNine = false, sharpEleven = false, flatThirteen = false;
+    while (!text.empty()) {
+        if (text.substr(0, 3) == "b13" && !flatThirteen) { flatThirteen = true; text.remove_prefix(3); chord.thirteenth = Thirteenth::Minor; }
+        else if (text.substr(0, 3) == "#11" && !sharpEleven) { sharpEleven = true; text.remove_prefix(3); chord.eleventh = Eleventh::Sharp; }
+        else if (text.substr(0, 2) == "b9" && !flatNine && !sharpNine) { flatNine = true; text.remove_prefix(2); chord.ninth = Ninth::Minor; }
+        else if (text.substr(0, 2) == "#9" && !sharpNine && !flatNine) { sharpNine = true; text.remove_prefix(2); chord.ninth = Ninth::Sharp; }
+        else return false;
+    }
+    // an altered 11 or 13 still stands on a ninth
+    if ((chord.eleventh != Eleventh::None || chord.thirteenth != Thirteenth::None) && chord.ninth == Ninth::None) chord.ninth = Ninth::Major;
+    return true;
+}
 
 bool consume(std::string_view& s, std::string_view prefix) {
     if (s.substr(0, prefix.size()) == prefix) {
@@ -132,6 +161,18 @@ ParseResult parseRomanNumeral(std::string_view text) {
                 break;
             }
         }
+        Figure extension{"", true, 0, false};
+        if (match == nullptr) {
+            ChordSpec ext;
+            bool major7 = false;
+            if (parseExtension(s, ext, major7)) {
+                extension.majorSeventh = major7;
+                chord.ninth = ext.ninth;
+                chord.eleventh = ext.eleventh;
+                chord.thirteenth = ext.thirteenth;
+                match = &extension;
+            }
+        }
         if (match == nullptr) return fail("unsupported or unrecognised suffix '" + std::string(s) + "' in '" + std::string(text) + "'");
         if (halfDiminished && (!match->seventh || match->majorSeventh)) {
             return fail("half-diminished chords are minor-seventh chords; use 7-chord figures (65, 43, 42) in '" + std::string(text) + "'");
@@ -139,9 +180,8 @@ ParseResult parseRomanNumeral(std::string_view text) {
         seventh = match->seventh;
         majorSeventh = match->majorSeventh;
         chord.inversion = match->inversion;
-        chord.ninth = match->ninth;
         if (ninthInversion != 0) {
-            if (match->ninth == Ninth::None) return fail("an inversion marker like (1) only applies to ninth chords in '" + std::string(text) + "'");
+            if (chord.ninth == Ninth::None) return fail("an inversion marker like (1) only applies to ninth chords in '" + std::string(text) + "'");
             chord.inversion = ninthInversion;
         }
     }
@@ -175,6 +215,7 @@ std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
     if (chord.seventh == Seventh::Diminished && !diminished) return std::nullopt;
     if (chord.seventh == Seventh::Major && chord.inversion != 0 && chord.ninth == Ninth::None) return std::nullopt;
     if (chord.ninth != Ninth::None && chord.seventh == Seventh::Diminished) return std::nullopt;
+    if (chord.eleventh != Eleventh::None && chord.inversion != 0) return std::nullopt;
 
     static const char* const kUpperNumerals[7] = {"I", "II", "III", "IV", "V", "VI", "VII"};
     static const char* const kLowerNumerals[7] = {"i", "ii", "iii", "iv", "v", "vi", "vii"};
@@ -195,11 +236,11 @@ std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
             if (chord.inversion == 2) s += "64";
             break;
         case Seventh::Major:
-            s += chord.ninth == Ninth::Major ? "maj9" : chord.ninth == Ninth::Minor ? "maj7b9" : "maj7";
+            s += chord.ninth != Ninth::None ? extensionSymbol(chord) : "maj7";
             break;
         case Seventh::Minor:
         case Seventh::Diminished:
-            if (chord.ninth != Ninth::None) s += chord.ninth == Ninth::Major ? "9" : "7b9";
+            if (chord.ninth != Ninth::None) s += extensionSymbol(chord);
             else s += kSeventhFigures[chord.inversion];
             break;
     }

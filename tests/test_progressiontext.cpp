@@ -180,7 +180,7 @@ TEST_CASE("parseProgressionText: lengths, rests and separators", "[text]") {
 }
 
 TEST_CASE("parseProgressionText: rejects bad input and names the token", "[text][errors]") {
-    const char* bad[] = {"I X V", "I VIII", "I:0", "I:-1", "I:abc", "I:", "I:100", "I:1e999", "I::2", "-:0", "-:x", "I V11"};
+    const char* bad[] = {"I X V", "I VIII", "I:0", "I:-1", "I:abc", "I:", "I:100", "I:1e999", "I::2", "-:0", "-:x", "I V15"};
     for (const char* text : bad) {
         INFO("text: " << text);
         const auto r = parseProgressionText(text, k44);
@@ -236,4 +236,28 @@ TEST_CASE("text round trip: parse(format(parse(t))) == parse(t)", "[text]") {
             CHECK(second == first);
         }
     }
+}
+
+TEST_CASE("progression text: octaves, inversions and ninths survive copy and paste", "[progressiontext][octave]") {
+    const TimeSignature ts{4, 4};
+    const auto parsed = parseProgressionText("I@+1 V9(1):2@-2 - vi65:0.5@+2", ts);
+    REQUIRE(parsed.ok);
+    REQUIRE(parsed.blocks.size() == 3);
+    CHECK(parsed.blocks[0].octave == 1);
+    CHECK(parsed.blocks[1].octave == -2);
+    CHECK(parsed.blocks[1].chord.ninth == Ninth::Major);
+    CHECK(parsed.blocks[1].chord.inversion == 1);
+    CHECK(parsed.blocks[2].octave == 2);
+    CHECK(parsed.blocks[2].startTick == 3840 * 4);
+
+    Progression p;
+    p.blocks = parsed.blocks;
+    const auto text = formatProgressionText(p);
+    CHECK(text == "I@+1 V9(1):2@-2 - vi65:0.5@+2");
+    const auto again = parseProgressionText(text, ts);
+    REQUIRE(again.ok);
+    CHECK(again.blocks == p.blocks);
+
+    for (const char* bad : {"I@3", "I@-3", "I@", "I@+", "I@x", "I@+11"}) CHECK_FALSE(parseProgressionText(bad, ts).ok);
+    CHECK(parseProgressionText("I@0", ts).ok);
 }

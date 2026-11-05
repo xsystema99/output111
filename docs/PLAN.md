@@ -201,3 +201,11 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - One engine: playback, Preview and export all consume `generateNotes`, so a chord at tick 1440 lasting a quarter has note-ons at 1440 and note-offs at 2400 everywhere (tests C, G).
 - GUI (`GridComponent`) previews drags on a local copy and commits one `editProgression` on mouse-up (one undo step). The audio thread is never involved.
 
+## 4h. Combined build: text, range export, extensions, audition, resize
+
+- Copy/Paste text gains `@+N` (chord octave); inversions and 9ths were already expressible. `formatProgressionText` / `parseProgressionText` round-trip chords, inversions, 9ths, octaves, lengths and gaps.
+- Bar-range export (`exportProgressionRangeToMidi`) calls the single note generator, then clips and shifts the notes; nothing is re-timed independently.
+- Extensions: `Ninth {Minor, Major, Sharp}`, `Eleventh {Perfect, Sharp}`, `Thirteenth {Minor, Major}` on a minor/major seventh. A natural 11 and a natural 13 do not combine (a "13" leaves out the 11); 11th/13th chords are root position only; 9th chords invert up to the 2nd. The symbol text (`extensionSymbol`) is shared by chord names and Roman numerals, so parse(format(x)) is exact. `Progression::validate` rejects any chord that would leave MIDI 0..127, so a bad edit is refused, never clipped silently.
+- Audition: `AuditionPlayer` (core, tested) emits the same events as the scheduler; the processor feeds it under its own spin lock, only when the host is stopped and Preview is idle, and every note-on gets one note-off.
+- Resize: the editor is resizable (minimum 640 x 716); extra height goes to the grid, extra width to the grid, sliders and palette.
+
