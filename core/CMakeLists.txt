@@ -11,7 +11,8 @@ add_library(chordcore STATIC
     src/MidiFile.cpp
     src/Timeline.cpp
     src/ChordEdit.cpp
-    src/Preview.cpp)
+    src/Preview.cpp
+    src/Grid.cpp)
 
 target_include_directories(chordcore PUBLIC include)
 target_compile_features(chordcore PUBLIC cxx_std_17)

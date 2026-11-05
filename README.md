@@ -172,7 +172,7 @@ Install the new CI build as before. The window is 640 x 620 and not resizable.
 10. **Copy progression**, then **Paste** after editing: the progression returns. Save the set, reopen: the edited project is restored.
 11. **Export MIDI...** still writes a file that matches what plays.
 
-Known limits: the timeline always fits the whole progression in its width (no scrolling or zoom); the last card can be lengthened by dragging past the right edge or with Duplicate; the meter (4/4) is shown but not editable.
+Known limits (superseded by the precision chord grid, see its checklist): the timeline always fits the whole progression in its width; the last card can be lengthened by dragging past the right edge or with Duplicate; the meter (4/4) is shown but not editable.
 
 ## Manual test checklist: Preview (Ableton Live 12.4.16, Windows) — not yet run
 
@@ -196,6 +196,21 @@ Same routing as the milestone 3 checklist (track 1 = ChordSketch, track 2 = an i
 5. Both add up (project +1 and chord +1 = two octaves up). **Undo** reverts each of these in one step.
 6. **Save the Live set, reopen it**: length, octaves and per-chord octaves are restored.
 7. Copy / Paste progression only carries chords and lengths, not octaves: pasted chords come back at octave 0 (known limit).
+
+## Manual test checklist: precision chord grid (Ableton Live 12.4.16, Windows) — not yet run
+
+Nothing below is claimed to work in Live until you have run it. The tick maths, snap, ruler, zoom/scroll, group edits, MIDI export, save/reload and undo are covered by automated tests (tests/test_grid.cpp, tests A-I); the mouse/keyboard behaviour and the host checks are not.
+
+1. Open the plugin: a ruler (bar numbers, beat numbers, "&" lines) sits above one chord lane; Snap is 1/8, Insert is 1/4.
+2. Pick a chord in the palette with nothing selected (press Esc in the grid first): the status line says it is armed. Hover the lane: a faint ghost shows where a click would insert. Click the "&" of beat 2: a one-beat chord appears there; the status line reads "Bar 1, beat 2 &".
+3. Change Snap to 1/16 and add a chord on the "a" of beat 3; change to 1/8 triplet and add one; chords already placed must not move. Change Insert to 1/2 or 1 bar and insert again.
+4. Drag a chord: the original stays as an outline, a ghost follows the snapped position and a label shows the destination bar/beat. Release, then Undo: one step undoes the whole drag. Drag the left and right edges to resize; a chord never reaches zero length and stops at its neighbour.
+5. Click, Shift-click, and rectangle-drag on empty lane to select several; drag one of them: all move together. Try Ctrl+D, Delete/Backspace, Esc, Ctrl+A. **Keyboard delivery inside Live's plugin window is unverified**; the Duplicate and Delete buttons do the same.
+6. Ctrl+wheel zooms about the cursor; Shift+wheel and the scrollbar scroll; Fit shows the whole project. At low zoom the small labels disappear but chords stay put.
+7. In Live: record or play the MIDI output to another track and check that the chord on the "&" of beat 2 sounds half a beat after beat 2. Export MIDI and import it into a clip: first note at the "&" of beat 2, length one beat.
+8. Press play in the DAW, loop a region, edit chords while it plays: no hanging notes; the playhead and its "Bar x, beat y" readout follow the transport (also after a tempo change).
+
+Known limits: there is no Chord Density feature in this codebase, so no density indicator or density test exists (Test F covers 7th, inversion and octave voicing instead); the editor window is not resizable; overlap policy is "never overwrite" (see docs/PLAN.md 4g).
 
 ## Licensing
 

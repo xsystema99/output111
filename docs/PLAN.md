@@ -190,3 +190,14 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - **MIDI time-signature meta.** The writer always emits "24 clocks per click, 8 32nd-notes per
   quarter". Hosts ignore these fields for import, but a notation-oriented consumer might care.
   Revisit when Format 1 / tempo maps are added (M2).
+
+## 4g. Precision chord grid (replaces the card timeline)
+
+- Time model unchanged: every chord has an independent `startTick` / `durationTicks` at 960 PPQ, so no migration was needed. Pixels exist only in `TimelineView` (origin + zoom) and are converted to ticks on each event; nothing derived from pixels is stored.
+- `Grid.h` (JUCE-free, tested): `tickOf`/`positionOf`/`positionLabel` (beat, e, &, a), `buildRuler` (bar/beat/subdivision hierarchy, labels thin out with zoom, positions never depend on zoom), `zoomView`/`scrollView`/`clampView`/`fitView`.
+- Snap (`SnapMode`): 1 bar, 1/2, 1/4, 1/8 (default), 1/16, 1/32, 1/8T (320 ticks), 1/16T (160 ticks), Off. Changing snap only changes the unit used by later edits; it never moves a chord. Insert length (default 1/4) is independent of snap.
+- Insertion snaps to the start of the grid cell that was clicked. Group operations `moveBlocks` / `duplicateBlocks` / `deleteBlocks` keep relative timing, durations, chords and octaves.
+- Overlap policy (single lane): nothing is ever overwritten or silently dropped. Move and resize clamp at the neighbouring chord; a group move also stops at unselected chords; inserting inside an existing chord is refused with a message; an inserted chord is shortened to fit the gap before the next one; duplicating without room fails and changes nothing. Overlapping layers can be added later because only the lane rules (Timeline.cpp) would change.
+- One engine: playback, Preview and export all consume `generateNotes`, so a chord at tick 1440 lasting a quarter has note-ons at 1440 and note-offs at 2400 everywhere (tests C, G).
+- GUI (`GridComponent`) previews drags on a local copy and commits one `editProgression` on mouse-up (one undo step). The audio thread is never involved.
+

@@ -36,7 +36,6 @@ constexpr int kPaletteDegrees = 7;
 
 ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     : juce::AudioProcessorEditor(&p), chordProcessor(p), model(p.getProgression()), timeline(p) {
-    selected = model.blocks.empty() ? -1 : 0;
 
     // header
     titleLabel.setText("ChordSketch", juce::dontSendNotification);
@@ -80,7 +79,39 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     styleLabel(timelineHint, 12.0f, false, ui::mutedTextColour(), juce::Justification::centredRight);
     addAndMakeVisible(timelineCaption);
     addAndMakeVisible(timelineHint);
-    timeline.onSelectionChanged = [this](int index) { selectionChanged(index); };
+    snapBox.addItem("Snap: 1 bar", 1);
+    snapBox.addItem("Snap: 1/2", 2);
+    snapBox.addItem("Snap: 1/4", 3);
+    snapBox.addItem("Snap: 1/8", 4);
+    snapBox.addItem("Snap: 1/16", 5);
+    snapBox.addItem("Snap: 1/32", 6);
+    snapBox.addItem("Snap: 1/8 triplet", 7);
+    snapBox.addItem("Snap: 1/16 triplet", 8);
+    snapBox.addItem("Snap: Off", 9);
+    snapBox.setSelectedId(4, juce::dontSendNotification);
+    styleCombo(snapBox);
+    snapBox.onChange = [this] {
+        static const SnapMode modes[9] = {SnapMode::Bar, SnapMode::HalfNote, SnapMode::QuarterNote, SnapMode::EighthNote, SnapMode::SixteenthNote,
+                                          SnapMode::ThirtySecondNote, SnapMode::EighthTriplet, SnapMode::SixteenthTriplet, SnapMode::Off};
+        timeline.setSnapMode(modes[std::clamp(snapBox.getSelectedId(), 1, 9) - 1]);
+    };
+    insertLengthBox.addItem("Insert: 1/16", 1);
+    insertLengthBox.addItem("Insert: 1/8", 2);
+    insertLengthBox.addItem("Insert: 1/4", 3);
+    insertLengthBox.addItem("Insert: 1/2", 4);
+    insertLengthBox.addItem("Insert: 1 bar", 5);
+    insertLengthBox.setSelectedId(3, juce::dontSendNotification);
+    styleCombo(insertLengthBox);
+    insertLengthBox.onChange = [this] {
+        static const Tick lengths[4] = {240, 480, 960, 1920};
+        const int id = std::clamp(insertLengthBox.getSelectedId(), 1, 5);
+        timeline.setInsertDuration(id == 5 ? model.timeSignature.ticksPerBar() : lengths[id - 1]);
+    };
+    fitButton.onClick = [this] { timeline.fitToWindow(); };
+    for (auto* c : std::initializer_list<juce::Component*>{&snapBox, &insertLengthBox, &fitButton}) addAndMakeVisible(*c);
+    timeline.setSnapMode(SnapMode::EighthNote);
+    timeline.setInsertDuration(kTicksPerQuarter);
+    timeline.onSelectionChanged = [this](const std::vector<std::size_t>&, int) { selectionChanged(); };
     timeline.onMessage = [this](const juce::String& text) { setStatus(text); };
     addAndMakeVisible(timeline);
 
@@ -152,16 +183,6 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
         const auto label = chordProcessor.getHistoryInfo().redoLabel;
         if (chordProcessor.redo()) setStatus("Redid: " + juce::String(label));
     };
-    snapBox.addItem("Snap: Bar", 1);
-    snapBox.addItem("Snap: Beat", 2);
-    snapBox.addItem("Snap: 1/2 beat", 3);
-    snapBox.addItem("Snap: Off", 4);
-    snapBox.setSelectedId(1, juce::dontSendNotification);
-    styleCombo(snapBox);
-    snapBox.onChange = [this] {
-        const SnapMode modes[4] = {SnapMode::Bar, SnapMode::Beat, SnapMode::HalfBeat, SnapMode::Off};
-        timeline.setSnapMode(modes[std::clamp(snapBox.getSelectedId(), 1, 4) - 1]);
-    };
     tempoSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     tempoSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 84, 24);
     tempoSlider.setRange(20.0, 400.0, 0.1);
@@ -172,7 +193,7 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     tempoSlider.setColour(juce::Slider::thumbColourId, ui::textColour());
     tempoSlider.onValueChange = [this] { tempoChanged(); };
     exportButton.onClick = [this] { exportMidiClicked(); };
-    for (auto* c : std::initializer_list<juce::Component*>{&undoButton, &redoButton, &snapBox, &tempoSlider, &exportButton}) addAndMakeVisible(*c);
+    for (auto* c : std::initializer_list<juce::Component*>{&undoButton, &redoButton, &tempoSlider, &exportButton}) addAndMakeVisible(*c);
 
     // footer
     footerNote.setText("Syncs to the DAW when it plays", juce::dontSendNotification);
@@ -183,7 +204,7 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     styleLabel(statusLabel, 12.0f, false, ui::mutedTextColour());
     for (auto* c : std::initializer_list<juce::Component*>{&previewButton, &footerNote, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
 
-    setSize(640, 620);
+    setSize(640, 676);
     refreshFromModel();
     chordProcessor.changes().addChangeListener(this);
     startTimerHz(15);
@@ -242,11 +263,16 @@ void ChordSketchEditor::resized() {
     area.removeFromTop(16);
 
     // timeline
-    auto timelineHeader = area.removeFromTop(22);
-    timelineCaption.setBounds(timelineHeader.removeFromLeft(140));
-    timelineHint.setBounds(timelineHeader);
+    auto timelineHeader = area.removeFromTop(28);
+    timelineCaption.setBounds(timelineHeader.removeFromLeft(86));
+    snapBox.setBounds(timelineHeader.removeFromLeft(136));
+    timelineHeader.removeFromLeft(8);
+    insertLengthBox.setBounds(timelineHeader.removeFromLeft(122));
+    timelineHeader.removeFromLeft(8);
+    fitButton.setBounds(timelineHeader.removeFromLeft(48));
+    timelineHint.setBounds(timelineHeader.withTrimmedLeft(8));
     area.removeFromTop(6);
-    timeline.setBounds(area.removeFromTop(112));
+    timeline.setBounds(area.removeFromTop(150));
     area.removeFromTop(16);
 
     // palette
@@ -288,8 +314,6 @@ void ChordSketchEditor::resized() {
     undoButton.setBounds(tools.removeFromLeft(64));
     tools.removeFromLeft(8);
     redoButton.setBounds(tools.removeFromLeft(64));
-    tools.removeFromLeft(8);
-    snapBox.setBounds(tools.removeFromLeft(124));
     tools.removeFromLeft(8);
     exportButton.setBounds(tools.removeFromRight(132));
     tools.removeFromRight(8);
@@ -335,8 +359,8 @@ void ChordSketchEditor::previewClicked() {
 void ChordSketchEditor::refreshFromModel() {
     model = chordProcessor.getProgression();
     const auto history = chordProcessor.getHistoryInfo();
-    const int count = static_cast<int>(model.blocks.size());
-    if (selected >= count) selected = count - 1;
+    timeline.setProgression(model);  // also drops selection indices that no longer exist
+    selected = timeline.getPrimary();
 
     // key / scale / meter
     for (int pc = 0; pc < 12; ++pc) tonicBox.changeItemText(pc + 1, juce::String(noteName(model.key, pc)));
@@ -357,9 +381,9 @@ void ChordSketchEditor::refreshFromModel() {
     // timeline
     const Tick bar = model.timeSignature.ticksPerBar();
     const auto bars = static_cast<int>(std::max<Tick>(model.lengthTicks() / bar, 4));
-    timelineHint.setText(juce::String(bars) + " bars \xC2\xB7 click to select, drag to move, drag edges to resize", juce::dontSendNotification);
-    timeline.setProgression(model);
-    timeline.setSelectedIndex(selected);
+    timelineHint.setText(juce::String(bars) + " bars \xC2\xB7 Ctrl+wheel zooms", juce::dontSendNotification);
+
+    timeline.setInsertChord(diatonicChord(model.key.mode, insertDegree));
 
     // palette: the seven diatonic chords of the current scale
     const bool hasSelection = selected >= 0;
@@ -368,8 +392,9 @@ void ChordSketchEditor::refreshFromModel() {
         auto& button = *paletteButtons[static_cast<std::size_t>(degree - 1)];
         const auto roman = formatRomanNumeral(diatonicChord(model.key.mode, degree));
         button.setButtonText(ui::displayNumeral(roman ? juce::String(*roman) : juce::String("?")));
-        button.setEnabled(hasSelection);
-        button.setToggleState(current != nullptr && current->degree == degree && current->accidental == 0, juce::dontSendNotification);
+        button.setEnabled(true);  // always: with nothing selected it arms the chord that a grid click inserts
+        const int shownDegree = current != nullptr ? current->degree : insertDegree;
+        button.setToggleState(shownDegree == degree && (current == nullptr || current->accidental == 0), juce::dontSendNotification);
     }
 
     // selected chord
@@ -397,20 +422,26 @@ void ChordSketchEditor::refreshFromModel() {
     if (!loadError.empty()) setStatus("Could not restore the saved project (kept the current one): " + juce::String(loadError));
 }
 
-void ChordSketchEditor::selectionChanged(int index) {
-    selected = index;
-    refreshFromModel();
-}
+void ChordSketchEditor::selectionChanged() { refreshFromModel(); }
 
 void ChordSketchEditor::applyToSelected(const std::string& label,
                                         const std::function<void(Progression&, std::size_t)>& change) {
-    if (selected < 0) return;
-    const auto index = static_cast<std::size_t>(selected);
-    const auto result = chordProcessor.editProgression(label, [&change, index](Progression& prog) { change(prog, index); });
+    const auto indices = timeline.getSelection();
+    if (indices.empty()) return;
+    const auto result = chordProcessor.editProgression(label, [&change, &indices](Progression& prog) {
+        for (auto index : indices) change(prog, index);  // every selected chord, one undo step
+    });
     if (!result.ok) setStatus("Cannot do that: " + juce::String(result.error));
 }
 
 void ChordSketchEditor::paletteClicked(int degree) {
+    insertDegree = degree;
+    timeline.setInsertChord(diatonicChord(model.key.mode, degree));
+    if (timeline.getSelection().empty()) {
+        setStatus("Armed " + juce::String(chordName(model.key, diatonicChord(model.key.mode, degree))) + ": click the grid to insert it.");
+        refreshFromModel();
+        return;
+    }
     applyToSelected("Change chord", [degree](Progression& prog, std::size_t i) {
         prog.blocks.at(i).chord = withDegree(prog.key.mode, prog.blocks.at(i).chord, degree);
     });
@@ -463,31 +494,13 @@ void ChordSketchEditor::splitClicked() {
         if (!r.ok) r = splitBlock(prog, index, middle, 1);  // too short for the beat grid: cut exactly in half
         if (!r.ok) throw std::runtime_error(r.error);
     });
-    if (result.ok) selected += 1;  // the second half
+    if (result.ok) timeline.setSelection({index + 1}, static_cast<int>(index + 1));  // the second half
     else setStatus("Cannot split: " + juce::String(result.error));
 }
 
-void ChordSketchEditor::duplicateClicked() {
-    if (selected < 0) return;
-    const auto index = static_cast<std::size_t>(selected);
-    const auto result = chordProcessor.editProgression("Duplicate chord", [index](Progression& prog) {
-        const auto r = duplicateBlock(prog, index);
-        if (!r.ok) throw std::runtime_error(r.error);
-    });
-    if (result.ok) selected += 1;  // the copy
-    else setStatus("Cannot duplicate: " + juce::String(result.error));
-}
+void ChordSketchEditor::duplicateClicked() { timeline.duplicateSelection(); }
 
-void ChordSketchEditor::deleteClicked() {
-    if (selected < 0) return;
-    const auto index = static_cast<std::size_t>(selected);
-    const auto result = chordProcessor.editProgression("Delete chord", [index](Progression& prog) {
-        const auto r = deleteBlock(prog, index);
-        if (!r.ok) throw std::runtime_error(r.error);
-    });
-    if (!result.ok) setStatus("Cannot delete: " + juce::String(result.error));
-    // the selection is clamped to the remaining blocks when the model refreshes
-}
+void ChordSketchEditor::deleteClicked() { timeline.deleteSelection(); }
 
 void ChordSketchEditor::copyClicked() {
     const auto text = formatProgressionText(model);
@@ -504,7 +517,8 @@ void ChordSketchEditor::pasteClicked() {
     }
     const auto result = chordProcessor.editProgression("Paste progression", [&parsed](Progression& prog) { prog.blocks = parsed.blocks; });
     if (result.ok) {
-        selected = parsed.blocks.empty() ? -1 : 0;
+        if (parsed.blocks.empty()) timeline.setSelection({}, -1);
+        else timeline.setSelection({0}, 0);
         setStatus("Pasted " + juce::String(static_cast<int>(parsed.blocks.size())) + " chords");
     } else {
         setStatus("Cannot paste: " + juce::String(result.error));

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 #include <chordcore/Progression.h>
 #include <chordcore/Theory.h>
@@ -20,7 +21,14 @@ namespace chordcore {
 //  - `unit` is the snap grid in ticks (1 = free). Edited positions snap to multiples of the unit; a
 //    neighbour that sits off-grid wins over the grid, so snapping never causes an overlap.
 
-enum class SnapMode { Off, Bar, Beat, HalfBeat };
+/// Beat / HalfBeat are relative to the time signature's denominator (an eighth / sixteenth in 6/8). The *Note and
+/// *Triplet modes are fixed note values, whatever the time signature: at 960 ticks per quarter a 1/8 note is 480
+/// ticks, a 1/16 note 240, an eighth-note triplet 320 and a sixteenth-note triplet 160, so straight and triplet
+/// positions are exact integers.
+enum class SnapMode {
+    Off, Bar, Beat, HalfBeat,
+    HalfNote, QuarterNote, EighthNote, SixteenthNote, ThirtySecondNote, EighthTriplet, SixteenthTriplet
+};
 
 /// Grid size in ticks. Off -> 1. Beat is one note of the time signature's denominator (a quarter in 4/4,
 /// an eighth in 6/8); HalfBeat is half of that (at least 1 tick).
@@ -36,6 +44,7 @@ struct OpResult {
     bool ok = false;
     std::string error;
     std::size_t index = 0;  ///< the affected block (for add/split: the new/second block); meaningless after delete
+    std::vector<std::size_t> indices;  ///< group operations: the affected blocks (for duplicate: the new copies)
 };
 
 /// Index of the block that covers `tick` (start <= tick < end), or -1.
@@ -51,9 +60,24 @@ OpResult resizeBlockStart(Progression& progression, std::size_t index, Tick desi
 /// Moves the right edge (the start stays); same limits as resizeBlockStart, bounded above by the next block.
 OpResult resizeBlockEnd(Progression& progression, std::size_t index, Tick desiredEnd, Tick unit);
 
-/// Inserts a chord at the snapped tick. Its length is one bar, shortened to fit the gap before the next block.
-/// Fails if the snapped position is inside an existing block or past the end limit. Keeps blocks sorted by start.
-OpResult addBlock(Progression& progression, const ChordSpec& chord, Tick atTick, Tick unit);
+/// Inserts a chord at the snapped tick. Its length is `duration` ticks (0 = one bar), shortened to fit the gap
+/// before the next block; the duration is independent of the snap unit. Fails if the snapped position is inside an
+/// existing block or past the end limit. Keeps blocks sorted by start.
+OpResult addBlock(Progression& progression, const ChordSpec& chord, Tick atTick, Tick unit, Tick duration = 0);
+
+/// Moves several blocks together by the same amount, keeping their relative timing. The delta is chosen so that
+/// block `anchor` lands on the snapped `desiredAnchorStart`, then clamped so that no moved block overlaps, or passes,
+/// a block that is not being moved. `indices` must be unique and valid.
+OpResult moveBlocks(Progression& progression, const std::vector<std::size_t>& indices, std::size_t anchor,
+                    Tick desiredAnchorStart, Tick unit);
+
+/// Copies the selected blocks as one group, placed right after the group (the copy of the earliest block starts
+/// where the group ends), preserving relative timing, durations, chords and octaves. Fails, changing nothing,
+/// if the copies would overlap another block or pass the end limit. `indices` of the result are the copies.
+OpResult duplicateBlocks(Progression& progression, const std::vector<std::size_t>& indices);
+
+/// Deletes several blocks at once.
+OpResult deleteBlocks(Progression& progression, const std::vector<std::size_t>& indices);
 
 /// Cuts a block into two equal-chord blocks at the snapped tick, which must lie strictly inside it.
 OpResult splitBlock(Progression& progression, std::size_t index, Tick atTick, Tick unit);

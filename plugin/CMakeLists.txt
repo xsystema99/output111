@@ -41,8 +41,8 @@ target_sources(ChordSketch PRIVATE
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
     Source/PluginEditor.h
-    Source/TimelineComponent.cpp
-    Source/TimelineComponent.h
+    Source/GridComponent.cpp
+    Source/GridComponent.h
     Source/UiKit.h)
 
 target_compile_definitions(ChordSketch PUBLIC

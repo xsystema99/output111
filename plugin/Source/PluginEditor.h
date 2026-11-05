@@ -1,7 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "TimelineComponent.h"
+#include "GridComponent.h"
 #include "UiKit.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -16,7 +16,7 @@
 ///
 ///   header           title, VST3 badge
 ///   Key / Scale / Octave (whole project) / Length (4, 8, 16... bars) / Meter
-///   Chord timeline   coloured chord cards (TimelineComponent)
+///   Chord grid       ruler + chord lane with snapping, zoom and scrolling (GridComponent)
 ///   Chord palette    the seven diatonic chords of the current scale; click one to set the selected chord
 ///   Selected chord   its octave (- / +), Triad / 7th / 9th / Sus2 / Sus4, plus Split / Duplicate / Delete
 ///   tools            Undo, Redo, grid snap, tempo, Export MIDI
@@ -39,7 +39,7 @@ private:
     void refreshFromModel();
     void setStatus(const juce::String& text);
 
-    void selectionChanged(int index);
+    void selectionChanged();
     void applyToSelected(const std::string& label, const std::function<void(chordcore::Progression&, std::size_t)>& change);
     void paletteClicked(int degree);
     void keyChanged();
@@ -57,7 +57,8 @@ private:
 
     ChordSketchProcessor& chordProcessor;
     chordcore::Progression model;  // last value read from the chordProcessor
-    int selected = -1;             // index of the selected block, -1 = none
+    int selected = -1;             // the primary selected block (the grid owns the whole selection), -1 = none
+    int insertDegree = 1;          // the chord a click on an empty grid position inserts
 
     // header
     juce::Rectangle<int> iconBounds, badgeBounds;
@@ -69,8 +70,10 @@ private:
     juce::ComboBox tonicBox, scaleBox, octaveBox, lengthBox;
 
     // timeline
-    juce::Label timelineCaption{{}, "Chord timeline"}, timelineHint;
-    TimelineComponent timeline;
+    juce::Label timelineCaption{{}, "Chord grid"}, timelineHint;
+    juce::ComboBox snapBox, insertLengthBox;
+    ui::StyledButton fitButton{"Fit", ui::StyledButton::Look::Outline, 13.0f};
+    GridComponent timeline;
 
     // palette
     juce::Label paletteCaption{{}, "Chord palette"};
@@ -92,7 +95,6 @@ private:
     // tools
     ui::StyledButton undoButton{"Undo", ui::StyledButton::Look::Outline};
     ui::StyledButton redoButton{"Redo", ui::StyledButton::Look::Outline};
-    juce::ComboBox snapBox;
     juce::Slider tempoSlider;
     ui::StyledButton exportButton{"Export MIDI...", ui::StyledButton::Look::Primary, 15.0f};
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace chordcore {
 
@@ -49,15 +50,28 @@ Tick nextLimit(const Progression& p, std::size_t self, Tick start) {
 }  // namespace
 
 Tick snapUnitTicks(SnapMode mode, const TimeSignature& ts) {
-    if (!ts.isValid()) return 1;
-    const Tick beat = static_cast<Tick>(kTicksPerQuarter) * 4 / ts.denominator;
-    switch (mode) {
+    constexpr Tick quarter = kTicksPerQuarter;
+    switch (mode) {  // fixed note values do not depend on the time signature
         case SnapMode::Off: return 1;
+        case SnapMode::HalfNote: return quarter * 2;
+        case SnapMode::QuarterNote: return quarter;
+        case SnapMode::EighthNote: return quarter / 2;
+        case SnapMode::SixteenthNote: return quarter / 4;
+        case SnapMode::ThirtySecondNote: return quarter / 8;
+        case SnapMode::EighthTriplet: return quarter / 3;
+        case SnapMode::SixteenthTriplet: return quarter / 6;
+        case SnapMode::Bar:
+        case SnapMode::Beat:
+        case SnapMode::HalfBeat: break;
+    }
+    if (!ts.isValid()) return 1;
+    const Tick beat = quarter * 4 / ts.denominator;
+    switch (mode) {
         case SnapMode::Bar: return ts.ticksPerBar();
         case SnapMode::Beat: return std::max<Tick>(beat, 1);
         case SnapMode::HalfBeat: return std::max<Tick>(beat / 2, 1);
+        default: return 1;
     }
-    return 1;
 }
 
 Tick snapToUnit(Tick tick, Tick unit) {
@@ -109,7 +123,7 @@ OpResult resizeBlockEnd(Progression& p, std::size_t index, Tick desiredEnd, Tick
     return succeed(index);
 }
 
-OpResult addBlock(Progression& p, const ChordSpec& chord, Tick atTick, Tick unit) {
+OpResult addBlock(Progression& p, const ChordSpec& chord, Tick atTick, Tick unit, Tick duration) {
     if (!chord.isValid()) return fail("invalid chord");
     if (!p.timeSignature.isValid()) return fail("invalid time signature");
     const Tick start = std::max<Tick>(snapToUnit(atTick, unit), 0);
@@ -119,7 +133,8 @@ OpResult addBlock(Progression& p, const ChordSpec& chord, Tick atTick, Tick unit
     const Tick room = nextLimit(p, p.blocks.size(), start) - start;  // self index out of range: nobody ignored
     if (room < 1) return fail("no room for a chord there");
 
-    ChordBlock added{chord, start, std::min(p.timeSignature.ticksPerBar(), room)};
+    const Tick wanted = duration > 0 ? duration : p.timeSignature.ticksPerBar();
+    ChordBlock added{chord, start, std::min(wanted, room)};
     std::size_t position = 0;
     while (position < p.blocks.size() && p.blocks[position].startTick < start) ++position;
     p.blocks.insert(p.blocks.begin() + static_cast<std::ptrdiff_t>(position), added);
@@ -151,6 +166,99 @@ OpResult duplicateBlock(Progression& p, std::size_t index) {
     copy.startTick = start;
     p.blocks.insert(p.blocks.begin() + static_cast<std::ptrdiff_t>(index) + 1, copy);
     return succeed(index + 1);
+}
+
+namespace {
+
+/// Unique, valid, ascending copy of `indices`; false if any index is invalid or repeated.
+bool normalised(const Progression& p, const std::vector<std::size_t>& indices, std::vector<std::size_t>& out) {
+    out = indices;
+    std::sort(out.begin(), out.end());
+    if (out.empty() || std::adjacent_find(out.begin(), out.end()) != out.end()) return false;
+    return out.back() < p.blocks.size();
+}
+
+}  // namespace
+
+OpResult moveBlocks(Progression& p, const std::vector<std::size_t>& indices, std::size_t anchor, Tick desiredAnchorStart, Tick unit) {
+    std::vector<std::size_t> sel;
+    if (!normalised(p, indices, sel)) return fail("no such block");
+    if (std::find(sel.begin(), sel.end(), anchor) == sel.end()) return fail("the anchor must be one of the moved blocks");
+
+    std::vector<char> moving(p.blocks.size(), 0);
+    for (auto i : sel) moving[i] = 1;
+
+    Tick deltaMin = std::numeric_limits<Tick>::min() / 4, deltaMax = std::numeric_limits<Tick>::max() / 4;
+    const Tick endLimit = maxEndTick(p.timeSignature);
+    for (auto i : sel) {
+        const ChordBlock& b = p.blocks[i];
+        Tick before = 0, after = endLimit;  // nearest non-moving neighbours
+        for (std::size_t j = 0; j < p.blocks.size(); ++j) {
+            if (moving[j]) continue;
+            if (p.blocks[j].startTick < b.startTick) before = std::max(before, p.blocks[j].endTick());
+            else after = std::min(after, p.blocks[j].startTick);
+        }
+        deltaMin = std::max(deltaMin, before - b.startTick);
+        deltaMax = std::min(deltaMax, std::max(after, b.endTick()) - b.endTick());
+    }
+    deltaMin = std::min<Tick>(deltaMin, 0);
+    deltaMax = std::max<Tick>(deltaMax, 0);
+
+    Tick delta = snapToUnit(desiredAnchorStart, unit) - p.blocks[anchor].startTick;
+    delta = std::clamp(delta, deltaMin, deltaMax);
+    for (auto i : sel) p.blocks[i].startTick += delta;
+
+    OpResult r = succeed(anchor);
+    r.indices = sel;
+    return r;
+}
+
+OpResult duplicateBlocks(Progression& p, const std::vector<std::size_t>& indices) {
+    std::vector<std::size_t> sel;
+    if (!normalised(p, indices, sel)) return fail("no such block");
+
+    Tick first = p.blocks[sel.front()].startTick, last = p.blocks[sel.front()].endTick();
+    for (auto i : sel) {
+        first = std::min(first, p.blocks[i].startTick);
+        last = std::max(last, p.blocks[i].endTick());
+    }
+    const Tick offset = last - first;
+
+    std::vector<ChordBlock> copies;
+    for (auto i : sel) {
+        ChordBlock c = p.blocks[i];  // chord, duration and octave are preserved
+        c.startTick += offset;
+        copies.push_back(c);
+    }
+
+    const Tick endLimit = maxEndTick(p.timeSignature);
+    for (const auto& c : copies) {
+        if (c.endTick() > endLimit) return fail("no room: the copy would go past the end of the timeline");
+        for (const auto& existing : p.blocks) {
+            if (c.startTick < existing.endTick() && existing.startTick < c.endTick()) return fail("no room: the copy would overlap another chord");
+        }
+    }
+
+    for (const auto& c : copies) p.blocks.push_back(c);
+    std::stable_sort(p.blocks.begin(), p.blocks.end(), [](const ChordBlock& a, const ChordBlock& b) { return a.startTick < b.startTick; });
+
+    OpResult r = succeed(0);
+    for (const auto& c : copies) {
+        for (std::size_t i = 0; i < p.blocks.size(); ++i) {
+            if (p.blocks[i].startTick == c.startTick) { r.indices.push_back(i); break; }
+        }
+    }
+    if (!r.indices.empty()) r.index = r.indices.front();
+    return r;
+}
+
+OpResult deleteBlocks(Progression& p, const std::vector<std::size_t>& indices) {
+    std::vector<std::size_t> sel;
+    if (!normalised(p, indices, sel)) return fail("no such block");
+    for (auto it = sel.rbegin(); it != sel.rend(); ++it) p.blocks.erase(p.blocks.begin() + static_cast<std::ptrdiff_t>(*it));
+    OpResult r = succeed(sel.front());
+    r.indices = sel;
+    return r;
 }
 
 OpResult deleteBlock(Progression& p, std::size_t index) {
