@@ -212,9 +212,9 @@ Nothing below is claimed to work in Live until you have run it. The tick maths, 
 
 Known limits: there is no Chord Density feature in this codebase, so no density indicator or density test exists (Test F covers 7th, inversion and octave voicing instead); the editor window is not resizable; overlap policy is "never overwrite" (see docs/PLAN.md 4g).
 
-## Manual test checklist: M7, drag MIDI out (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: M7, drag MIDI out (Ableton Live 12.4.16, Windows) — user reports it works perfectly
 
-Compiled and checked by CI, but dragging files out of a plugin window into Live is a host/OS behaviour that has not been tested.
+Confirmed by the user in Live (no per-step detail given).
 
 1. Footer: a "Drag MIDI" pill sits where the old note was. Click it once: the status line explains what to do.
 2. Press and drag it out of the plugin window onto an empty MIDI track or a clip slot in Live: a clip should appear with the progression (same notes and timing as Export MIDI...). Try the arrangement view too.
