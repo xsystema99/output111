@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 
 #include <chordcore/ChordEdit.h>
+#include <chordcore/MelodyGenerator.h>
 #include <chordcore/NoteEngine.h>
 #include <chordcore/ProgressionText.h>
 #include <chordcore/RomanNumeral.h>
@@ -120,7 +121,7 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     styleLabel(melodyCaption, 14.0f, true, ui::textColour());
     styleLabel(velocityCaption, 12.0f, false, ui::mutedTextColour());
     styleLabel(melodyHint, 11.0f, false, ui::mutedTextColour(), juce::Justification::centredRight);
-    melodyHint.setText("bright = chord tone, faint = scale tone, hatched = outside the key", juce::dontSendNotification);
+    melodyHint.setText("bright = chord, faint = scale, hatched = outside", juce::dontSendNotification);
     mappingBox.addItem("Diatonic colours", 1);
     mappingBox.addItem("Major-centric", 2);
     paletteBox.addItem("Classic", 1);
@@ -154,6 +155,8 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     muteMelodyButton.setTooltip("Silence the melody in playback (channel 2). Exports are not affected.");
     addAndMakeVisible(muteChordsButton);
     addAndMakeVisible(muteMelodyButton);
+    generateButton.onClick = [this] { openGenerator(); };
+    addAndMakeVisible(generateButton);
     lockButton.setEnabled(false);
     lockButton.onClick = [this] { roll.toggleLockSelected(); };
     roll.onMessage = [this](const juce::String& text) { setStatus(text); };
@@ -391,7 +394,9 @@ void ChordSketchEditor::resized() {
     velocitySlider.setBounds(melodyFooter.removeFromLeft(168));
     melodyFooter.removeFromLeft(8);
     lockButton.setBounds(melodyFooter.removeFromLeft(56));
-    melodyHint.setBounds(melodyFooter.withTrimmedLeft(8));
+    melodyFooter.removeFromLeft(8);
+    generateButton.setBounds(melodyFooter.removeFromLeft(100));
+    melodyHint.setBounds(melodyFooter.withTrimmedLeft(6));
     area.removeFromTop(12);
 
     // palette
@@ -492,6 +497,7 @@ void ChordSketchEditor::refreshFromModel() {
     const auto history = chordProcessor.getHistoryInfo();
     timeline.setProgression(model);  // also drops selection indices that no longer exist
     roll.setProgression(model);
+    if (generatorPanel != nullptr) generatorPanel->refresh();
     mappingBox.setSelectedId(model.melodySettings.mapping == ColourMapping::DiatonicCentric ? 1 : 2, juce::dontSendNotification);
     paletteBox.setSelectedId(static_cast<int>(model.melodySettings.palette) + 1, juce::dontSendNotification);
     labelsBox.setSelectedId(static_cast<int>(model.melodySettings.labels) + 1, juce::dontSendNotification);
@@ -583,6 +589,81 @@ void ChordSketchEditor::melodySelectionChanged() {
     lockButton.setEnabled(count > 0);
     if (count > 0) velocitySlider.setValue(roll.primaryVelocity(), juce::dontSendNotification);
     lockButton.setButtonText(count > 0 && roll.primaryLocked() ? "Unlock" : "Lock");
+}
+
+void ChordSketchEditor::openGenerator() {
+    auto panel = std::make_unique<GeneratorPanel>(chordProcessor);
+    panel->onGenerate = [this] { runGenerator(0); };
+    panel->onReroll = [this] { runGenerator(1); };
+    panel->onSelectedRegion = [this] { runGenerator(2); };
+    panel->onWholeProject = [this] { runGenerator(3); };
+    panel->onAffected = [this] { runGenerator(4); };
+    generatorPanel = panel.get();
+    juce::CallOutBox::launchAsynchronously(std::move(panel), generateButton.getScreenBounds(), nullptr);
+}
+
+// Where "Generate" starts and what "selected region" means: the selected chords' span if any chords are selected,
+// otherwise the selected melody notes' span, otherwise nothing (bar 1).
+void ChordSketchEditor::currentSpan(int& startBar, Tick& from, Tick& to) const {
+    const Tick bar = model.timeSignature.ticksPerBar();
+    startBar = 1;
+    from = to = 0;
+    const auto chords = timeline.getSelection();
+    const auto notes = roll.getSelection();
+    bool have = false;
+    for (auto i : chords) {
+        if (i >= model.blocks.size()) continue;
+        const auto& b = model.blocks[i];
+        from = have ? std::min(from, b.startTick) : b.startTick;
+        to = have ? std::max(to, b.endTick()) : b.endTick();
+        have = true;
+    }
+    if (!have) {
+        for (auto i : notes) {
+            if (i >= model.melody.size()) continue;
+            const auto& n = model.melody[i];
+            from = have ? std::min(from, n.startTick) : n.startTick;
+            to = have ? std::max(to, n.endTick()) : n.endTick();
+            have = true;
+        }
+    }
+    if (have) startBar = static_cast<int>(from / bar) + 1;
+}
+
+void ChordSketchEditor::runGenerator(int action) {
+    int startBar = 1;
+    Tick from = 0, to = 0;
+    currentSpan(startBar, from, to);
+    const auto settings = chordProcessor.getProgression().melodySettings.generator;
+    std::size_t count = 0;
+    GenerationRange range{};
+    juce::String what;
+
+    const auto result = chordProcessor.editProgression(action == 1 ? "Reroll melody" : action == 4 ? "Regenerate affected melody" : "Generate melody", [&](Progression& p) {
+        OpResult r;
+        if (action == 4) {
+            r = regenerateAffectedMelody(p);
+        } else {
+            if (action == 1) p.melodySettings.generator.seed += 1;
+            const auto scope = action == 2 ? PhraseScope::SelectedRegion : action == 3 ? PhraseScope::FullProgression : settings.scope;
+            range = scopeRange(p, scope, startBar, from, to);
+            r = regenerateMelody(p, range);
+        }
+        if (!r.ok) throw std::runtime_error(r.error);
+        count = r.indices.size();
+    });
+    if (!result.ok) {
+        setStatus("Melody not generated: " + juce::String(result.error));
+        return;
+    }
+    const Tick bar = model.timeSignature.ticksPerBar();
+    if (action == 4) {
+        setStatus("Regenerated the melody over the chords that changed. Undo restores the previous melody.");
+    } else {
+        setStatus("Generated " + juce::String(static_cast<int>(count)) + " notes over bars " + juce::String(static_cast<int>(range.start / bar) + 1) + " to " +
+                  juce::String(static_cast<int>((std::max<Tick>(range.end, 1) - 1) / bar) + 1) + " (seed " +
+                  juce::String(static_cast<juce::int64>(chordProcessor.getProgression().melodySettings.generator.seed)) + "). Undo restores the previous melody.");
+    }
 }
 
 void ChordSketchEditor::muteChanged() {

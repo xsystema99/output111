@@ -283,6 +283,21 @@ What this build adds: **Export MIDI...** now asks what to export (Combined / Cho
 6. Mute melody, press play: only chords sound. Mute chords instead: only the melody. Both off: both play. Mute state is saved with the project and each press is an undo step. Export still contains both parts while muted.
 7. Route channel 2 to its own instrument in Live if you like (Live's MIDI-From channel setting on a second track). The plugin only sets the channel numbers; whether Live treats them as separate tracks is up to Live's routing.
 
+## Manual test checklist: Build C, melody generator (Ableton Live 12.4.16, Windows) — not yet run
+
+What this build adds: a **Generate...** button under the piano roll opens the generator panel (contour, density, rhythm, length, tension, register, seed). The generator is a deterministic rule-based engine: it favours chord tones on strong beats, scale tones on weak beats, small steps over leaps, phrase endings on the chord root, and only uses notes outside the key when Tension allows. It runs when you press a button (never while audio plays), and every run is one undo step.
+
+1. Press **Generate...**, leave the defaults, press **Generate**. A 4-bar melody appears starting at the selected chord's bar (or bar 1). Play it: it should follow the chords (notes outside the chord are mostly on weak beats; the last note of the phrase lands on the chord's root).
+2. Press **Reroll**: a different melody (seed + 1). Set the seed back to the earlier number and press Generate: the earlier melody returns exactly.
+3. Try each Contour (Ascending, Descending, Arch, Inverted arch, Wave, Free), Density (Sparse/Moderate/Dense), Rhythm (Sustained/Lyrical/Rhythmic/Syncopated/Free) and the register Lowest/Highest sliders: every note should stay inside the register. Tension 0 = only notes in the key.
+4. Select a few melody notes and press **Lock**. Generate again (or Reroll): locked notes stay exactly where they are and new notes avoid them. Undo (tools row) brings the previous melody back.
+5. Select one or two chords (or notes) and press **Selected region** in the panel: only that span changes. **Whole project** regenerates the unlocked notes everywhere.
+6. Change a chord (e.g. replace the V chord), look at the piano roll: the melody did **not** change by itself (some notes now sit outside the chord, shown by their backgrounds). Press **Regenerate affected** in the panel: only the changed chord's span is regenerated.
+7. Save the Live set, reopen it: generator settings, seed, locks and notes are all back; "Regenerate affected" still knows which chords changed.
+8. Export Combined.mid after generating: the generated notes are in the Melody track.
+
+Not built: Chord Density and Chromatic Dice do not exist in this project, so there is nothing to wire the generator to for them.
+
 ## Licensing
 
 JUCE is dual-licensed (AGPLv3 / commercial). Distributing a plugin built with JUCE requires either

@@ -377,6 +377,24 @@ const std::pair<const char*, LabelMode> kLabelModes[] = {{"none", LabelMode::Non
                                                          {"degree", LabelMode::Degree},
                                                          {"both", LabelMode::Both}};
 
+const std::pair<const char*, Contour> kContours[] = {{"ascending", Contour::Ascending}, {"descending", Contour::Descending}, {"arch", Contour::Arch},
+                                                     {"invertedArch", Contour::InvertedArch}, {"wave", Contour::Wave}, {"free", Contour::Free}};
+const std::pair<const char*, Density> kDensities[] = {{"sparse", Density::Sparse}, {"moderate", Density::Moderate}, {"dense", Density::Dense}};
+const std::pair<const char*, RhythmStyle> kRhythms[] = {{"sustained", RhythmStyle::Sustained}, {"lyrical", RhythmStyle::Lyrical},
+                                                        {"rhythmic", RhythmStyle::Rhythmic}, {"syncopated", RhythmStyle::Syncopated},
+                                                        {"free", RhythmStyle::Free}};
+const std::pair<const char*, PhraseScope> kScopes[] = {{"1bar", PhraseScope::OneBar}, {"2bars", PhraseScope::TwoBars}, {"4bars", PhraseScope::FourBars},
+                                                       {"8bars", PhraseScope::EightBars}, {"selected", PhraseScope::SelectedRegion},
+                                                       {"full", PhraseScope::FullProgression}};
+
+template <typename Enum, std::size_t N>
+const char* nameOf(Enum value, const std::pair<const char*, Enum> (&table)[N]) {
+    for (const auto& entry : table) {
+        if (entry.second == value) return entry.first;
+    }
+    return table[0].first;
+}
+
 const std::pair<const char*, Mode> kModes[] = {{"major", Mode::Major}, {"minor", Mode::Minor}};
 const std::pair<const char*, Quality> kQualities[] = {{"major", Quality::Major},
                                                       {"minor", Quality::Minor},
@@ -457,7 +475,34 @@ std::string serializeProgression(const Progression& p) {
         if (m.melodyChannel != d.melodyChannel) add("\"melodyChannel\":" + std::to_string(m.melodyChannel));
         if (m.muteChords) add("\"muteChords\":true");
         if (m.muteMelody) add("\"muteMelody\":true");
+        if (m.generator != d.generator) {
+            const auto& g = m.generator;
+            const auto& dg = d.generator;
+            std::string gf;
+            auto gadd = [&gf](const std::string& f) {
+                if (!gf.empty()) gf += ",";
+                gf += f;
+            };
+            if (g.contour != dg.contour) gadd(std::string("\"contour\":\"") + nameOf(g.contour, kContours) + "\"");
+            if (g.density != dg.density) gadd(std::string("\"density\":\"") + nameOf(g.density, kDensities) + "\"");
+            if (g.tension != dg.tension) gadd("\"tension\":" + std::to_string(g.tension));
+            if (g.rhythm != dg.rhythm) gadd(std::string("\"rhythm\":\"") + nameOf(g.rhythm, kRhythms) + "\"");
+            if (g.scope != dg.scope) gadd(std::string("\"scope\":\"") + nameOf(g.scope, kScopes) + "\"");
+            if (g.registerLow != dg.registerLow) gadd("\"registerLow\":" + std::to_string(g.registerLow));
+            if (g.registerHigh != dg.registerHigh) gadd("\"registerHigh\":" + std::to_string(g.registerHigh));
+            if (g.seed != dg.seed) gadd("\"seed\":" + std::to_string(g.seed));
+            add("\"generator\":{" + gf + "}");
+        }
         out += fields + "}";
+    }
+    if (!p.melodyBasis.empty()) {
+        out += ",\"melodyBasis\":[";
+        for (std::size_t i = 0; i < p.melodyBasis.size(); ++i) {
+            const auto& e = p.melodyBasis[i];
+            if (i > 0) out += ",";
+            out += "[" + std::to_string(e.startTick) + "," + std::to_string(e.durationTicks) + "," + std::to_string(e.chordHash) + "]";
+        }
+        out += "]";
     }
     out += "}";
     return out;
@@ -578,6 +623,41 @@ DeserializeResult deserializeProgression(std::string_view text) {
             !r.boolean(*ms, "$.melodySettings", "muteChords", s.muteChords, false) ||
             !r.boolean(*ms, "$.melodySettings", "muteMelody", s.muteMelody, false)) {
             return fail(r.error);
+        }
+        if (const Json* gen = r.member(*ms, "$.melodySettings", "generator", /*required=*/false)) {
+            if (gen->type != Json::Type::Object) return fail("$.melodySettings.generator: expected an object");
+            auto& g = s.generator;
+            const std::string gp = "$.melodySettings.generator";
+            long long seed = g.seed;
+            if (!r.enumeration(*gen, gp, "contour", g.contour, kContours, false) || !r.enumeration(*gen, gp, "density", g.density, kDensities, false) ||
+                !r.narrowInt(*gen, gp, "tension", g.tension, false) || !r.enumeration(*gen, gp, "rhythm", g.rhythm, kRhythms, false) ||
+                !r.enumeration(*gen, gp, "scope", g.scope, kScopes, false) || !r.narrowInt(*gen, gp, "registerLow", g.registerLow, false) ||
+                !r.narrowInt(*gen, gp, "registerHigh", g.registerHigh, false) || !r.integer(*gen, gp, "seed", seed, false)) {
+                return fail(r.error);
+            }
+            if (seed < 0 || seed > 4294967295LL) return fail(gp + ".seed: out of range");
+            g.seed = static_cast<std::uint32_t>(seed);
+        }
+    }
+    if (const Json* basis = r.member(root, "$", "melodyBasis", /*required=*/false)) {
+        if (basis->type != Json::Type::Array) return fail("$.melodyBasis: expected an array");
+        if (basis->array.size() > static_cast<std::size_t>(kMaxMelodyNotes)) return fail("$.melodyBasis: too many entries");
+        for (std::size_t i = 0; i < basis->array.size(); ++i) {
+            const Json& e = basis->array[i];
+            const std::string path = "$.melodyBasis[" + std::to_string(i) + "]";
+            if (e.type != Json::Type::Array || e.array.size() != 3) return fail(path + ": expected [start, duration, hash]");
+            MelodyBasisEntry entry;
+            for (int k = 0; k < 3; ++k) {
+                const Json& v = e.array[static_cast<std::size_t>(k)];
+                if (v.type != Json::Type::Number || std::floor(v.number) != v.number || v.number < 0 || v.number > 9007199254740992.0) {
+                    return fail(path + ": expected non-negative integers");
+                }
+            }
+            entry.startTick = static_cast<Tick>(e.array[0].number);
+            entry.durationTicks = static_cast<Tick>(e.array[1].number);
+            if (e.array[2].number > 4294967295.0) return fail(path + ": hash out of range");
+            entry.chordHash = static_cast<std::uint32_t>(e.array[2].number);
+            p.melodyBasis.push_back(entry);
         }
     }
 

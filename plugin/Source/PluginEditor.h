@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "GridComponent.h"
+#include "GeneratorPanel.h"
 #include "MelodyRollComponent.h"
 #include "MidiDragHandle.h"
 #include "UiKit.h"
@@ -60,6 +61,9 @@ private:
     void writeMidiTo(const juce::File& file, const chordcore::ProjectExportOptions& options);
     void chooseExportFile(const chordcore::ProjectExportOptions& options);
     void muteChanged();
+    void openGenerator();
+    void runGenerator(int action);  ///< 0 generate, 1 reroll, 2 selected region, 3 whole project, 4 affected chords
+    void currentSpan(int& startBar, chordcore::Tick& from, chordcore::Tick& to) const;
     juce::File writeDragFile(juce::String& error);
 
     ChordSketchProcessor& chordProcessor;
@@ -86,6 +90,8 @@ private:
     juce::Label melodyCaption{{}, "Melody"}, velocityCaption{{}, "Velocity"}, melodyHint;
     juce::ComboBox mappingBox, paletteBox, labelsBox;
     juce::Slider velocitySlider;
+    ui::StyledButton generateButton{"Generate...", ui::StyledButton::Look::Primary, 13.0f};
+    juce::Component::SafePointer<GeneratorPanel> generatorPanel;
     ui::StyledButton muteChordsButton{"Mute chords", ui::StyledButton::Look::Pill, 12.0f};
     ui::StyledButton muteMelodyButton{"Mute melody", ui::StyledButton::Look::Pill, 12.0f};
     ui::StyledButton lockButton{"Lock", ui::StyledButton::Look::Outline, 13.0f};

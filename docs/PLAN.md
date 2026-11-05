@@ -226,3 +226,11 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - Combined is SMF Format 1: a conductor track (name, time signature, tempo, key) and tracks "Chords" and "Melody" without their own tempo events; all three share one end-of-track.
 - Mutes are playback-only (they remove a part from `generateProjectNotes()`); exports always contain both parts.
 - Editor: export dialog (part, bar range, melody channel), drag-part box, mute toggles (undoable, saved).
+
+## 4k. Melody generator (Build C)
+
+- `MelodyGenerator.h/.cpp`: pure and deterministic (own SplitMix64 generator seeded from seed and range start; no `<random>` distributions). Onsets per bar on an eighth grid from density and rhythm style with motif repetition; pitches by a score over the register (chord tones, scale tones, tension-gated chromatics, half-step clash, contour target, interval size, common tones, phrase-end root, repetition, seeded jitter). Locked notes and notes outside the range are obstacles and melodic context.
+- `regenerateMelody()` is the only mutation: removes unlocked notes starting in the range, adds the new ones, records the chords it generated against (`melodyBasis`: start, length, chord hash). `affectedRanges()` / `regenerateAffectedMelody()` compare current chords with that basis (changed, added or removed chords). Chord edits never touch the melody.
+- Tests: determinism, golden output (pinned notes for seed 1, run on Windows in CI too), register, density ordering, contour over 20 seeds, zero tension, strong-beat chord tones, phrase-end roots, locks, region isolation, affected regeneration, undo/redo, save/reload (spec tests H-K).
+- Editor: `GeneratorPanel` in a call-out box; settings are undoable project edits; actions run on the message thread as single edits.
+- Open: Chord Density and Chromatic Dice are not in this codebase, so test I was written against chord replacement.

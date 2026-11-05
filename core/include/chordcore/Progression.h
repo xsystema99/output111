@@ -42,6 +42,7 @@ struct Progression {
     std::vector<ChordBlock> blocks;
     std::vector<MelodyNote> melody;  ///< the melody lane, kept sorted by (startTick, pitch)
     MelodySettings melodySettings;
+    std::vector<MelodyBasisEntry> melodyBasis;  ///< chords the melody was last generated against (see Melody.h)
 
     /// End of the last chord (0 if there are no blocks).
     Tick endTick() const;
@@ -60,7 +61,7 @@ struct Progression {
 inline bool operator==(const Progression& a, const Progression& b) {
     return a.key == b.key && a.tempoBpm == b.tempoBpm && a.timeSignature == b.timeSignature && a.octave == b.octave &&
            a.lengthBars == b.lengthBars && a.blocks == b.blocks && a.melody == b.melody &&
-           a.melodySettings == b.melodySettings;
+           a.melodySettings == b.melodySettings && a.melodyBasis == b.melodyBasis;
 }
 inline bool operator!=(const Progression& a, const Progression& b) { return !(a == b); }
 

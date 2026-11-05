@@ -66,6 +66,14 @@ std::vector<std::string> Progression::validate() const {
         melodySettings.melodyChannel < kMinMidiChannel || melodySettings.melodyChannel > kMaxMidiChannel) {
         errors.push_back("MIDI channels must be 1..16");
     }
+    {
+        const auto& g = melodySettings.generator;
+        if (g.tension < 0 || g.tension > 100) errors.push_back("generator tension must be 0..100");
+        if (g.registerLow < 0 || g.registerHigh > 127 || g.registerHigh - g.registerLow < 11) {
+            errors.push_back("generator register must stay within 0..127 and span at least an octave");
+        }
+        if (melodyBasis.size() > static_cast<std::size_t>(kMaxMelodyNotes)) errors.push_back("melody basis too large");
+    }
     for (std::size_t i = 0; i < melody.size(); ++i) {
         const auto& n = melody[i];
         const std::string where = "melody note " + std::to_string(i) + ": ";

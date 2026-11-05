@@ -43,6 +43,8 @@ target_sources(ChordSketch PRIVATE
     Source/PluginEditor.h
     Source/GridComponent.cpp
     Source/GridComponent.h
+    Source/GeneratorPanel.cpp
+    Source/GeneratorPanel.h
     Source/MelodyRollComponent.cpp
     Source/MelodyRollComponent.h
     Source/MidiDragHandle.h
