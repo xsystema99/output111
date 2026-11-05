@@ -60,7 +60,7 @@ Key rules:
 | M3 (**implemented**) | Transport-synchronised MIDI output in `processBlock` from the same `NoteEvent` list (sample-accurate offsets, loop/jump/stop handling, stuck-note protection) | Scheduler unit tests with synthetic playheads; manual Live test |
 | M4 (**implemented**, Live check passed per user report) | State persistence (versioned JSON), undo/redo | Round-trip, golden-format, hostile-input and undo property tests; manual save/reload in Live |
 | M5 | Extended harmony: 9ths, alterations, secondary dominants, minor-key convention options | Theory tests per chord type |
-| M6 (**implemented**, awaiting Live check) | Timeline UI after the user's mockup: draggable/resizable chord cards, snapping, palette, chord types | Editing rules in core with tests; UI is a thin layer; manual check in Live |
+| M6 (**implemented**, Live check passed per user report) | Timeline UI after the user's mockup: draggable/resizable chord cards, snapping, palette, chord types | Editing rules in core with tests; UI is a thin layer; manual check in Live |
 | M7 | Native file drag-out from the plugin (`performExternalDragDropOfFiles`), Ableton verification | Manual test in Live 12.4.16 |
 
 Advanced features (M2+) are intentionally not started until M1's export has been independently checked.

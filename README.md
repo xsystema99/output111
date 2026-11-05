@@ -19,7 +19,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Loads in Ableton Live | **Loads and opens** (user-reported on Live 12.4.16, the target version, commit `45d87de`). "Export MIDI..." button works (user-reported). Exported `.mid` imports with correct chords, timing, tempo and octave (user-reported) | manual checklist below |
 | Live MIDI output from `processBlock`, synced to the host transport | Core scheduler **unit-tested** (81 tests incl. start, stop, locate, loop, tempo, exact sample positions, agreement with the exported file); plugin wiring **syntax-checked only** | **Works in Live 12.4.16** (user-reported: MIDI routed to another track plays correctly). Checklist below |
 | Project state: versioned JSON save/restore, undo/redo (snapshot history with coalescing), chord-text entry | Core **unit-tested** (117 tests total with g++ Debug and clang Release, `-Werror`; mutation-checked: 8 injected bugs all caught). Plugin wiring (host save/load, thread hand-over, editor) **syntax-checked only until CI builds it** | **Tested in Live 12.4.16: user reports the milestone 4 checklist completed with no errors** (per-step results not itemised) |
-| Timeline UI after the supplied mockup: coloured chord cards, 7-chord palette, Triad/7th/Sus2/Sus4, scale switch, move/resize/split/duplicate/delete/add with grid snapping, playhead | All editing rules **unit-tested** in core (Timeline, ChordEdit: 145+ tests with mutation checks). Painting and mouse handling **syntax-checked only until CI builds it**; I could not render it here | **Not yet seen or tried in Live**: checklist for milestone 6 below |
+| Timeline UI after the supplied mockup: coloured chord cards, 7-chord palette, Triad/7th/Sus2/Sus4, scale switch, move/resize/split/duplicate/delete/add with grid snapping, playhead | All editing rules **unit-tested** in core (Timeline, ChordEdit: 145+ tests with mutation checks). Painting and mouse handling **syntax-checked only until CI builds it**; I could not render it here | **Tried in Live 12.4.16: user reports "It works"** (per-step results not itemised); checklist for milestone 6 below |
 | Drag-out of `.mid`, Preview audition, 9th chords | Not implemented (milestone 7; Preview is a follow-up; 9ths are milestone 5). The "9th" button is shown disabled | |
 
 ## Layout
@@ -154,7 +154,7 @@ Install the new build (replace `C:\Program Files\Common Files\VST3\ChordSketch.v
 Not covered here: saved states from other versions (only version 1 exists); a newer file in an older
 plugin is refused with a message and the current project is kept.
 
-## Manual test checklist: milestone 6, timeline UI (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: milestone 6, timeline UI (Ableton Live 12.4.16, Windows) — user reports it works
 
 Install the new CI build as before. The window is 640 x 620 and not resizable.
 
