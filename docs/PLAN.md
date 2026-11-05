@@ -58,7 +58,7 @@ Key rules:
 | **M1 (this)** | Core types, theory (triads, sevenths, inversions, major/minor keys), basic Roman numeral parser, sus2/sus4 (added after M1 sign-off request), 4-chord model, note engine, SMF export, CLI demo, unit tests, minimal JUCE shell with "Export MIDI…" button | Core tests pass; `.mid` validated independently (byte parser + mido); plugin compiles on Windows; loads in Live |
 | M2 | Range/selection export (clip + shift ticks), optional Format 1, tempo map | Tests for clipped notes and range offsets |
 | M3 (**implemented**) | Transport-synchronised MIDI output in `processBlock` from the same `NoteEvent` list (sample-accurate offsets, loop/jump/stop handling, stuck-note protection) | Scheduler unit tests with synthetic playheads; manual Live test |
-| M4 (**implemented**, awaiting Live check) | State persistence (versioned JSON), undo/redo | Round-trip, golden-format, hostile-input and undo property tests; manual save/reload in Live |
+| M4 (**implemented**, Live check passed per user report) | State persistence (versioned JSON), undo/redo | Round-trip, golden-format, hostile-input and undo property tests; manual save/reload in Live |
 | M5 | Extended harmony: 9ths, alterations, secondary dominants, minor-key convention options | Theory tests per chord type |
 | M6 | Timeline UI: draggable/resizable chord blocks, snapping, Roman numeral entry | UI is a thin layer over the model |
 | M7 | Native file drag-out from the plugin (`performExternalDragDropOfFiles`), Ableton verification | Manual test in Live 12.4.16 |

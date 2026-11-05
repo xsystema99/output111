@@ -18,7 +18,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Windows / MSVC build of the VST3 | **Built in CI** (GitHub Actions `windows-latest`, MSVC, Release, 0 warnings); all 66 tests pass on Windows | Actions run for commit `584208d`. The `.vst3` was built but never loaded in a host |
 | Loads in Ableton Live | **Loads and opens** (user-reported on Live 12.4.16, the target version, commit `45d87de`). "Export MIDI..." button works (user-reported). Exported `.mid` imports with correct chords, timing, tempo and octave (user-reported) | manual checklist below |
 | Live MIDI output from `processBlock`, synced to the host transport | Core scheduler **unit-tested** (81 tests incl. start, stop, locate, loop, tempo, exact sample positions, agreement with the exported file); plugin wiring **syntax-checked only** | **Works in Live 12.4.16** (user-reported: MIDI routed to another track plays correctly). Checklist below |
-| Project state: versioned JSON save/restore, undo/redo (snapshot history with coalescing), chord-text entry | Core **unit-tested** (117 tests total with g++ Debug and clang Release, `-Werror`; mutation-checked: 8 injected bugs all caught). Plugin wiring (host save/load, thread hand-over, editor) **syntax-checked only until CI builds it** | **Not yet tried in Live**: checklist for milestone 4 below |
+| Project state: versioned JSON save/restore, undo/redo (snapshot history with coalescing), chord-text entry | Core **unit-tested** (117 tests total with g++ Debug and clang Release, `-Werror`; mutation-checked: 8 injected bugs all caught). Plugin wiring (host save/load, thread hand-over, editor) **syntax-checked only until CI builds it** | **Tested in Live 12.4.16: user reports the milestone 4 checklist completed with no errors** (per-step results not itemised) |
 | Timeline UI, drag-out of `.mid` | Not implemented (milestones 6, 7) | |
 
 ## Layout
@@ -132,7 +132,7 @@ Known limitations: the progression is fixed (the demo); it plays against the hos
 project's time signature; a loop wrap is noticed one audio block late, so notes ending exactly at the loop end
 may release up to one block late.
 
-## Manual test checklist: milestone 4, state and undo/redo (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: milestone 4, state and undo/redo (Ableton Live 12.4.16, Windows) — user reports complete, no errors
 
 Install the new build (replace `C:\Program Files\Common Files\VST3\ChordSketch.vst3`, Live closed).
 
