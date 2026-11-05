@@ -82,7 +82,9 @@ private:
     std::vector<std::unique_ptr<ui::StyledButton>> paletteButtons;
 
     // selected chord
-    juce::Label selectedCaption{{}, "Selected chord"}, selectedName, chordOctaveLabel;
+    juce::Label selectedCaption{{}, "Selected chord"}, selectedName, chordOctaveLabel, inversionLabel;
+    ui::StyledButton inversionDown{"-", ui::StyledButton::Look::Outline, 15.0f};
+    ui::StyledButton inversionUp{"+", ui::StyledButton::Look::Outline, 15.0f};
     ui::StyledButton chordOctaveDown{"-", ui::StyledButton::Look::Outline, 15.0f};
     ui::StyledButton chordOctaveUp{"+", ui::StyledButton::Look::Outline, 15.0f};
     ui::StyledButton triadButton{"Triad", ui::StyledButton::Look::Pill};

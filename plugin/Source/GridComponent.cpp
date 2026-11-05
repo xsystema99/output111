@@ -235,7 +235,8 @@ void GridComponent::drawBlock(juce::Graphics& g, const ChordBlock& block, bool s
                      juce::Justification::centred, 1, 0.55f);
     if (roomy) {
         auto label = typeLabel(block.chord);
-        if (block.octave != 0) label += juce::String(juce::CharPointer_UTF8(" \xC2\xB7 ")) + "oct " + (block.octave > 0 ? "+" : "") + juce::String(block.octave);
+        if (block.chord.inversion != 0) label += juce::String(juce::CharPointer_UTF8(label.isEmpty() ? "inv " : " \xC2\xB7 inv ")) + juce::String(block.chord.inversion);
+        if (block.octave != 0) label += juce::String(juce::CharPointer_UTF8(label.isEmpty() ? "" : " \xC2\xB7 ")) + "oct " + (block.octave > 0 ? "+" : "") + juce::String(block.octave);
         if (label.isNotEmpty()) {
             g.setFont(ui::font(11.0f));
             g.setColour(juce::Colours::white.withAlpha(0.85f * alpha));

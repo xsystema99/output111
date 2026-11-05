@@ -235,6 +235,16 @@ Theory, names, numerals, edits, save/reload and MIDI export of 9ths are covered 
 
 Not included: 11ths, 13ths, other alterations, or 9th inversions (a 9th chord is root position only). Minor-key numerals stay natural-minor style (i, III, VI, VII).
 
+## Manual test checklist: inversions (Ableton Live 12.4.16, Windows) — not yet run
+
+Voicing, limits, names, numerals and edit rules are covered by automated tests (tests/test_inversion.cpp); the buttons are not yet seen in Live.
+
+1. Select a chord: the **Selected chord** row now has an inversion control (`-  Root pos.  +`) left of the octave control.
+2. Press **+**: C major goes C/E (1st inv.), then C/G (2nd inv.). The card name shows the bass note and its small label reads "inv 1"; the notes you hear are the same chord with the bass moved up. **-** goes back; the buttons grey out at the ends.
+3. A 7th chord goes up to the 3rd inversion, a 9th chord up to the 2nd (V9 inverted reads V9(1), V9(2)). Adding a 7th/9th to an inverted chord keeps the inversion where allowed; Triad clamps it to 2nd.
+4. Select several chords (Shift-click) and press **+**: all of them change together, one Undo step. Changing the chord in the palette keeps its inversion.
+5. Export/drag the MIDI out: the inverted voicing matches what plays.
+
 ## Licensing
 
 JUCE is dual-licensed (AGPLv3 / commercial). Distributing a plugin built with JUCE requires either

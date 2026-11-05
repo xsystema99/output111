@@ -1,5 +1,6 @@
 #include <chordcore/Theory.h>
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace chordcore {
@@ -21,12 +22,16 @@ int seventhInterval(Seventh s) {
 
 }  // namespace
 
+int maxInversion(const ChordSpec& chord) noexcept {
+    if (chord.ninth != Ninth::None) return 2;
+    return chord.seventh == Seventh::None ? 2 : 3;
+}
+
 bool ChordSpec::isValid() const noexcept {
     if (degree < 1 || degree > 7) return false;
     if (accidental < -1 || accidental > 1) return false;
-    const int maxInversion = (seventh == Seventh::None) ? 2 : 3;
-    if (ninth != Ninth::None && ((seventh != Seventh::Minor && seventh != Seventh::Major) || inversion != 0)) return false;
-    return inversion >= 0 && inversion <= maxInversion;
+    if (ninth != Ninth::None && seventh != Seventh::Minor && seventh != Seventh::Major) return false;
+    return inversion >= 0 && inversion <= maxInversion(*this);
 }
 
 int scaleDegreeSemitones(Mode mode, int degree) {
@@ -65,13 +70,14 @@ std::vector<int> voiceChord(const Key& key, const ChordSpec& chord, const Voicin
     for (int interval : chordIntervals(chord)) pitches.push_back(root + interval);
 
     // Each inversion step moves the current lowest note up an octave. Chord tones are less than
-    // an octave apart, so the vector stays in ascending order.
+    // an octave apart (a ninth chord's top note may pass the moved root, so it is sorted afterwards).
     for (int step = 0; step < chord.inversion; ++step) {
         const int lowest = pitches.front();
         pitches.erase(pitches.begin());
         pitches.push_back(lowest + 12);
     }
 
+    std::sort(pitches.begin(), pitches.end());
     for (int p : pitches) {
         if (p < 0 || p > 127) throw std::out_of_range("chord pitch outside MIDI range 0..127");
     }

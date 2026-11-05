@@ -28,6 +28,7 @@ add_executable(chordcore_tests
     test_octave_length.cpp
     test_grid.cpp
     test_ninth.cpp
+    test_inversion.cpp
     test_midifile.cpp)
 target_include_directories(chordcore_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(chordcore_tests PRIVATE chordcore Catch2::Catch2WithMain)

@@ -42,8 +42,11 @@ ChordSpec withSeventhToggled(Mode mode, const ChordSpec& chord);  // on a ninth 
 Ninth diatonicNinth(Mode mode, int degree);
 
 /// Turns the diatonic ninth on or off. Turning it on adds the diatonic seventh if there is none and returns to
-/// root position (a ninth chord has no inversions); turning it off leaves the seventh chord.
+/// the inversion where the ninth chord allows it; turning it off leaves the seventh chord.
 ChordSpec withNinthToggled(Mode mode, const ChordSpec& chord);
+
+/// Sets the inversion, clamped to 0..maxInversion(chord).
+ChordSpec withInversion(const ChordSpec& chord, int inversion);
 
 /// "Sus2"/"Sus4" button: sets the suspension, or clears it if it is already `suspension`.
 /// Only major and minor chords can be suspended (see canSuspend); otherwise the chord is returned unchanged.

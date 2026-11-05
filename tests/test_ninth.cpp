@@ -49,8 +49,10 @@ TEST_CASE("ninth: validity", "[ninth]") {
     CHECK(c.isValid());
     ChordSpec noSeventh = c; noSeventh.seventh = Seventh::None;
     CHECK_FALSE(noSeventh.isValid());
-    ChordSpec inverted = c; inverted.inversion = 1;
-    CHECK_FALSE(inverted.isValid());
+    ChordSpec inverted = c; inverted.inversion = 2;
+    CHECK(inverted.isValid());
+    inverted.inversion = 3;
+    CHECK_FALSE(inverted.isValid());  // ninth chords stop at the second inversion
     ChordSpec dim7 = nine(7, Mode::Major); dim7.seventh = Seventh::Diminished;
     CHECK_FALSE(dim7.isValid());
 }
@@ -85,13 +87,15 @@ TEST_CASE("ninth: Roman numerals", "[ninth][roman]") {
                 for (auto n : {Ninth::Minor, Ninth::Major})
                     for (auto sus : {Suspension::None, Suspension::Sus2, Suspension::Sus4})
                         for (int acc = -1; acc <= 1; ++acc) {
-                            ChordSpec c{d, acc, q, sev, 0, sus, n};
-                            const auto text = formatRomanNumeral(c);
-                            if (!text) continue;
-                            const auto back = parseRomanNumeral(*text);
-                            if (!back.ok) continue;  // forms the grammar cannot express (e.g. dim + major 7th + suspension)
-                            CHECK(back.chord == c);
-                            ++checked;
+                            for (int inv = 0; inv <= 2; ++inv) {
+                                ChordSpec c{d, acc, q, sev, inv, sus, n};
+                                const auto text = formatRomanNumeral(c);
+                                if (!text) continue;
+                                const auto back = parseRomanNumeral(*text);
+                                if (!back.ok) continue;  // forms the grammar cannot express (e.g. dim + major 7th + suspension)
+                                CHECK(back.chord == c);
+                                ++checked;
+                            }
                         }
     CHECK(checked > 100);
     CHECK(parseRomanNumeral("V9").ok);
@@ -110,7 +114,10 @@ TEST_CASE("ninth: edit rules", "[ninth][edit]") {
     CHECK(withNinthToggled(Mode::Major, on).seventh == Seventh::Minor);  // leaves the seventh chord
 
     ChordSpec inverted = withSeventhToggled(Mode::Major, c); inverted.inversion = 2;
-    CHECK(withNinthToggled(Mode::Major, inverted).inversion == 0);
+    CHECK(withNinthToggled(Mode::Major, inverted).inversion == 2);  // kept where the ninth chord allows it
+    inverted.inversion = 3;
+    CHECK(withNinthToggled(Mode::Major, inverted).inversion == 2);  // clamped
+    CHECK(withNinthToggled(Mode::Major, inverted).isValid());
 
     CHECK(withSeventhToggled(Mode::Major, on).ninth == Ninth::None);   // 7th button on a 9th chord: plain 7th
     CHECK(withSeventhToggled(Mode::Major, on).seventh == Seventh::Minor);

@@ -115,6 +115,13 @@ ParseResult parseRomanNumeral(std::string_view text) {
                     std::string(text) + "'");
     }
 
+    // Ninth-chord inversion marker "(1)" / "(2)" (ninth chords have no traditional figures).
+    int ninthInversion = 0;
+    if (s.size() >= 3 && s.back() == ')' && s[s.size() - 3] == '(' && s[s.size() - 2] >= '1' && s[s.size() - 2] <= '9') {
+        ninthInversion = s[s.size() - 2] - '0';
+        s.remove_suffix(3);
+    }
+
     bool seventh = halfDiminished;
     bool majorSeventh = false;
     if (!s.empty()) {
@@ -133,7 +140,13 @@ ParseResult parseRomanNumeral(std::string_view text) {
         majorSeventh = match->majorSeventh;
         chord.inversion = match->inversion;
         chord.ninth = match->ninth;
+        if (ninthInversion != 0) {
+            if (match->ninth == Ninth::None) return fail("an inversion marker like (1) only applies to ninth chords in '" + std::string(text) + "'");
+            chord.inversion = ninthInversion;
+        }
     }
+
+    if (ninthInversion != 0 && s.empty()) return fail("an inversion marker needs a ninth chord in '" + std::string(text) + "'");
 
     if (!seventh) {
         chord.seventh = Seventh::None;
@@ -160,7 +173,7 @@ std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
     const bool augmented = chord.quality == Quality::Augmented;
     if (chord.suspension != Suspension::None && (diminished || augmented)) return std::nullopt;
     if (chord.seventh == Seventh::Diminished && !diminished) return std::nullopt;
-    if (chord.seventh == Seventh::Major && chord.inversion != 0) return std::nullopt;
+    if (chord.seventh == Seventh::Major && chord.inversion != 0 && chord.ninth == Ninth::None) return std::nullopt;
     if (chord.ninth != Ninth::None && chord.seventh == Seventh::Diminished) return std::nullopt;
 
     static const char* const kUpperNumerals[7] = {"I", "II", "III", "IV", "V", "VI", "VII"};
@@ -191,6 +204,7 @@ std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
             break;
     }
 
+    if (chord.ninth != Ninth::None && chord.inversion != 0) s += "(" + std::to_string(chord.inversion) + ")";
     if (chord.suspension == Suspension::Sus2) s += "sus2";
     if (chord.suspension == Suspension::Sus4) s += "sus4";
     return s;

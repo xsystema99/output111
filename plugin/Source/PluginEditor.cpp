@@ -142,6 +142,22 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
             if (!r.ok) throw std::runtime_error(r.error);
         });
     };
+    styleLabel(inversionLabel, 12.0f, false, ui::mutedTextColour(), juce::Justification::centred);
+    inversionDown.onClick = [this] {
+        applyToSelected("Inversion down", [](Progression& prog, std::size_t i) {
+            auto& chord = prog.blocks.at(i).chord;
+            chord = withInversion(chord, chord.inversion - 1);
+        });
+    };
+    inversionUp.onClick = [this] {
+        applyToSelected("Inversion up", [](Progression& prog, std::size_t i) {
+            auto& chord = prog.blocks.at(i).chord;
+            chord = withInversion(chord, chord.inversion + 1);
+        });
+    };
+    addAndMakeVisible(inversionLabel);
+    addAndMakeVisible(inversionDown);
+    addAndMakeVisible(inversionUp);
     addAndMakeVisible(selectedCaption);
     addAndMakeVisible(selectedName);
     addAndMakeVisible(chordOctaveLabel);
@@ -293,12 +309,16 @@ void ChordSketchEditor::resized() {
 
     // selected chord
     auto selectedHeader = area.removeFromTop(22);
-    selectedCaption.setBounds(selectedHeader.removeFromLeft(130));
-    selectedName.setBounds(selectedHeader.removeFromRight(70));
-    selectedHeader.removeFromRight(8);
+    selectedCaption.setBounds(selectedHeader.removeFromLeft(112));
+    selectedName.setBounds(selectedHeader.removeFromRight(62));
+    selectedHeader.removeFromRight(6);
     chordOctaveUp.setBounds(selectedHeader.removeFromRight(28));
     chordOctaveLabel.setBounds(selectedHeader.removeFromRight(76));
     chordOctaveDown.setBounds(selectedHeader.removeFromRight(28));
+    selectedHeader.removeFromRight(10);
+    inversionUp.setBounds(selectedHeader.removeFromRight(28));
+    inversionLabel.setBounds(selectedHeader.removeFromRight(70));
+    inversionDown.setBounds(selectedHeader.removeFromRight(28));
     area.removeFromTop(6);
     auto pills = area.removeFromTop(34);
     const std::pair<juce::Component*, int> left[] = {{&triadButton, 64}, {&seventhButton, 56}, {&ninthButton, 56}, {&sus2Button, 64}, {&sus4Button, 64}};
@@ -410,6 +430,13 @@ void ChordSketchEditor::refreshFromModel() {
                              juce::dontSendNotification);
     chordOctaveDown.setEnabled(hasSelection && chordOctave > -kMaxOctaveShift);
     chordOctaveUp.setEnabled(hasSelection && chordOctave < kMaxOctaveShift);
+    {
+        static const char* const names[5] = {"Root pos.", "1st inv.", "2nd inv.", "3rd inv.", "4th inv."};
+        const int inv = current != nullptr ? current->inversion : 0;
+        inversionLabel.setText(current != nullptr ? juce::String(names[std::clamp(inv, 0, 4)]) : juce::String("Inversion"), juce::dontSendNotification);
+        inversionDown.setEnabled(current != nullptr && inv > 0);
+        inversionUp.setEnabled(current != nullptr && inv < maxInversion(*current));
+    }
     sus2Button.setEnabled(current != nullptr && canSuspend(*current));
     sus4Button.setEnabled(current != nullptr && canSuspend(*current));
     triadButton.setToggleState(current != nullptr && current->seventh == Seventh::None && current->suspension == Suspension::None, juce::dontSendNotification);

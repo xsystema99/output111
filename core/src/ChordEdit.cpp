@@ -22,8 +22,7 @@ void checkDegree(int degree) {
 }
 
 ChordSpec clampInversion(ChordSpec chord) {
-    const int maxInversion = chord.seventh == Seventh::None ? 2 : 3;
-    chord.inversion = std::min(chord.inversion, maxInversion);
+    chord.inversion = std::clamp(chord.inversion, 0, maxInversion(chord));
     return chord;
 }
 
@@ -91,7 +90,7 @@ ChordSpec withSeventhToggled(Mode mode, const ChordSpec& chord) {
     ChordSpec result = chord;
     if (chord.ninth != Ninth::None) {  // a ninth chord drops back to its plain seventh chord
         result.ninth = Ninth::None;
-        return result;
+        return clampInversion(result);
     }
     result.seventh = chord.seventh == Seventh::None ? diatonicSeventh(mode, chord.degree) : Seventh::None;
     return clampInversion(result);
@@ -101,12 +100,17 @@ ChordSpec withNinthToggled(Mode mode, const ChordSpec& chord) {
     ChordSpec result = chord;
     if (chord.ninth != Ninth::None) {
         result.ninth = Ninth::None;
-        return result;
+        return clampInversion(result);
     }
     if (result.seventh == Seventh::None || result.seventh == Seventh::Diminished) result.seventh = diatonicSeventh(mode, chord.degree);
     result.ninth = diatonicNinth(mode, chord.degree);
-    result.inversion = 0;
-    return result;
+    return clampInversion(result);
+}
+
+ChordSpec withInversion(const ChordSpec& chord, int inversion) {
+    ChordSpec result = chord;
+    result.inversion = inversion;
+    return clampInversion(result);
 }
 
 bool canSuspend(const ChordSpec& chord) {

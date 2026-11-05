@@ -35,12 +35,16 @@ struct ChordSpec {
     int accidental = 0;  ///< -1 = flat, 0 = none, +1 = sharp (shifts the root from the scale degree)
     Quality quality = Quality::Major;
     Seventh seventh = Seventh::None;
-    int inversion = 0;   ///< 0 = root position; up to 2 for triads, 3 for seventh chords
+    int inversion = 0;   ///< 0 = root position; see maxInversion(): 2 for triads and ninth chords, 3 for seventh chords
     Suspension suspension = Suspension::None;
-    Ninth ninth = Ninth::None;  ///< needs a minor or major seventh and inversion 0
+    Ninth ninth = Ninth::None;  ///< needs a minor or major seventh
 
     bool isValid() const noexcept;
 };
+
+/// Highest inversion the chord supports: 2 for a triad, 3 for a seventh chord, 2 for a ninth chord (a third
+/// inversion of a ninth chord could pass MIDI 127 at the extreme octave settings).
+int maxInversion(const ChordSpec& chord) noexcept;
 
 inline bool operator==(const ChordSpec& a, const ChordSpec& b) noexcept {
     return a.degree == b.degree && a.accidental == b.accidental && a.quality == b.quality &&
@@ -64,7 +68,7 @@ int chordRootPitchClass(const Key& key, const ChordSpec& chord);
 /// Intervals of the chord in root position, ascending, starting at 0 (e.g. {0,4,7,10}).
 std::vector<int> chordIntervals(const ChordSpec& chord);
 
-/// MIDI pitches of the chord, ascending, with the requested inversion applied.
+/// MIDI pitches of the chord, ascending (sorted after inversion), with the requested inversion applied.
 /// Throws std::invalid_argument for an invalid key/chord and std::out_of_range if any pitch
 /// would fall outside 0..127. Deterministic: same input, same output.
 std::vector<int> voiceChord(const Key& key, const ChordSpec& chord, const VoicingOptions& voicing = {});
