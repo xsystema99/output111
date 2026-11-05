@@ -22,12 +22,15 @@ struct Figure {
     bool seventh;
     int inversion;
     bool majorSeventh;
+    Ninth ninth = Ninth::None;
 };
 
 constexpr Figure kFigures[] = {
     {"6", false, 1, false},   {"64", false, 2, false}, {"7", true, 0, false},
     {"65", true, 1, false},   {"43", true, 2, false},  {"42", true, 3, false},
     {"2", true, 3, false},    {"maj7", true, 0, true}, {"M7", true, 0, true},
+    {"9", true, 0, false, Ninth::Major},     {"maj9", true, 0, true, Ninth::Major},
+    {"7b9", true, 0, false, Ninth::Minor},   {"maj7b9", true, 0, true, Ninth::Minor},
 };
 
 bool consume(std::string_view& s, std::string_view prefix) {
@@ -129,6 +132,7 @@ ParseResult parseRomanNumeral(std::string_view text) {
         seventh = match->seventh;
         majorSeventh = match->majorSeventh;
         chord.inversion = match->inversion;
+        chord.ninth = match->ninth;
     }
 
     if (!seventh) {
@@ -157,6 +161,7 @@ std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
     if (chord.suspension != Suspension::None && (diminished || augmented)) return std::nullopt;
     if (chord.seventh == Seventh::Diminished && !diminished) return std::nullopt;
     if (chord.seventh == Seventh::Major && chord.inversion != 0) return std::nullopt;
+    if (chord.ninth != Ninth::None && chord.seventh == Seventh::Diminished) return std::nullopt;
 
     static const char* const kUpperNumerals[7] = {"I", "II", "III", "IV", "V", "VI", "VII"};
     static const char* const kLowerNumerals[7] = {"i", "ii", "iii", "iv", "v", "vi", "vii"};
@@ -177,11 +182,12 @@ std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
             if (chord.inversion == 2) s += "64";
             break;
         case Seventh::Major:
-            s += "maj7";
+            s += chord.ninth == Ninth::Major ? "maj9" : chord.ninth == Ninth::Minor ? "maj7b9" : "maj7";
             break;
         case Seventh::Minor:
         case Seventh::Diminished:
-            s += kSeventhFigures[chord.inversion];
+            if (chord.ninth != Ninth::None) s += chord.ninth == Ninth::Major ? "9" : "7b9";
+            else s += kSeventhFigures[chord.inversion];
             break;
     }
 

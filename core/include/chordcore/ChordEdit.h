@@ -36,7 +36,14 @@ ChordSpec asTriad(const ChordSpec& chord);
 
 /// "7th" button: adds the diatonic seventh of the chord's degree, or removes the seventh if there is one.
 /// A chord whose quality is not the diatonic one still gets that degree's diatonic seventh.
-ChordSpec withSeventhToggled(Mode mode, const ChordSpec& chord);
+ChordSpec withSeventhToggled(Mode mode, const ChordSpec& chord);  // on a ninth chord: drops to the seventh chord
+
+/// Ninth that is native to that degree's scale notes (major or minor ninth above the root).
+Ninth diatonicNinth(Mode mode, int degree);
+
+/// Turns the diatonic ninth on or off. Turning it on adds the diatonic seventh if there is none and returns to
+/// root position (a ninth chord has no inversions); turning it off leaves the seventh chord.
+ChordSpec withNinthToggled(Mode mode, const ChordSpec& chord);
 
 /// "Sus2"/"Sus4" button: sets the suspension, or clears it if it is already `suspension`.
 /// Only major and minor chords can be suspended (see canSuspend); otherwise the chord is returned unchanged.

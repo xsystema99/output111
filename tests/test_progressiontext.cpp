@@ -180,7 +180,7 @@ TEST_CASE("parseProgressionText: lengths, rests and separators", "[text]") {
 }
 
 TEST_CASE("parseProgressionText: rejects bad input and names the token", "[text][errors]") {
-    const char* bad[] = {"I X V", "I VIII", "I:0", "I:-1", "I:abc", "I:", "I:100", "I:1e999", "I::2", "-:0", "-:x", "I V9"};
+    const char* bad[] = {"I X V", "I VIII", "I:0", "I:-1", "I:abc", "I:", "I:100", "I:1e999", "I::2", "-:0", "-:x", "I V11"};
     for (const char* text : bad) {
         INFO("text: " << text);
         const auto r = parseProgressionText(text, k44);

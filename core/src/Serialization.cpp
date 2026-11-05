@@ -239,6 +239,15 @@ const char* toString(Seventh s) {
     return "none";
 }
 
+const char* toString(Ninth n) {
+    switch (n) {
+        case Ninth::None: return "none";
+        case Ninth::Minor: return "minor";
+        case Ninth::Major: return "major";
+    }
+    return "none";
+}
+
 const char* toString(Suspension s) {
     switch (s) {
         case Suspension::None: return "none";
@@ -319,6 +328,7 @@ const std::pair<const char*, Seventh> kSevenths[] = {{"none", Seventh::None},
                                                      {"minor", Seventh::Minor},
                                                      {"major", Seventh::Major},
                                                      {"diminished", Seventh::Diminished}};
+const std::pair<const char*, Ninth> kNinths[] = {{"none", Ninth::None}, {"minor", Ninth::Minor}, {"major", Ninth::Major}};
 const std::pair<const char*, Suspension> kSuspensions[] = {{"none", Suspension::None},
                                                            {"sus2", Suspension::Sus2},
                                                            {"sus4", Suspension::Sus4}};
@@ -349,6 +359,7 @@ std::string serializeProgression(const Progression& p) {
         out += std::string(",\"seventh\":\"") + toString(b.chord.seventh) + "\"";
         out += ",\"inversion\":" + std::to_string(b.chord.inversion);
         out += std::string(",\"suspension\":\"") + toString(b.chord.suspension) + "\"";
+        if (b.chord.ninth != Ninth::None) out += std::string(",\"ninth\":\"") + toString(b.chord.ninth) + "\"";
         out += ",\"startTick\":" + std::to_string(b.startTick);
         out += ",\"durationTicks\":" + std::to_string(b.durationTicks);
         if (b.octave != 0) out += ",\"octave\":" + std::to_string(b.octave);
@@ -431,6 +442,7 @@ DeserializeResult deserializeProgression(std::string_view text) {
             !r.enumeration(b, path, "seventh", block.chord.seventh, kSevenths) ||
             !r.narrowInt(b, path, "inversion", block.chord.inversion) ||
             !r.enumeration(b, path, "suspension", block.chord.suspension, kSuspensions, /*required=*/false) ||
+            !r.enumeration(b, path, "ninth", block.chord.ninth, kNinths, /*required=*/false) ||
             !r.integer(b, path, "startTick", start) || !r.integer(b, path, "durationTicks", duration) ||
             !r.narrowInt(b, path, "octave", block.octave, /*required=*/false)) {
             return fail(r.error);

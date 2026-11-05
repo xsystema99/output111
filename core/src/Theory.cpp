@@ -25,6 +25,7 @@ bool ChordSpec::isValid() const noexcept {
     if (degree < 1 || degree > 7) return false;
     if (accidental < -1 || accidental > 1) return false;
     const int maxInversion = (seventh == Seventh::None) ? 2 : 3;
+    if (ninth != Ninth::None && ((seventh != Seventh::Minor && seventh != Seventh::Major) || inversion != 0)) return false;
     return inversion >= 0 && inversion <= maxInversion;
 }
 
@@ -50,6 +51,8 @@ std::vector<int> chordIntervals(const ChordSpec& chord) {
     if (chord.suspension == Suspension::Sus4) third = 5;
     std::vector<int> intervals{0, third, fifth};
     if (chord.seventh != Seventh::None) intervals.push_back(seventhInterval(chord.seventh));
+    if (chord.ninth == Ninth::Minor) intervals.push_back(13);
+    if (chord.ninth == Ninth::Major) intervals.push_back(14);
     return intervals;
 }
 

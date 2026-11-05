@@ -223,6 +223,18 @@ Confirmed by the user in Live (no per-step detail given).
 
 If Live refuses the drop, say what happens (nothing, forbidden cursor, or an error) and I'll adjust; Export MIDI... remains the fallback. The file is written to the Windows temp folder, `ChordSketch\ChordSketch.mid`.
 
+## Manual test checklist: M5, 9th chords (Ableton Live 12.4.16, Windows) — not yet run
+
+Theory, names, numerals, edits, save/reload and MIDI export of 9ths are covered by automated tests (tests/test_ninth.cpp); the button and display are not yet seen in Live.
+
+1. Select a chord and press **9th**: it adds the diatonic 7th and 9th (C major: I = Cmaj9, V = G9, ii = Dm9, iii = Em7b9 with a flat 9, vii = Bm7b5b9). The card shows "9th" and the Roman numeral reads e.g. V9; five notes sound, the 9th on top.
+2. Press **7th** on a 9th chord: it drops to the plain 7th chord. **Triad** clears both. **9th** again removes just the 9th.
+3. Change the chord with the palette while a 9th is on: the 9th follows the new degree (V9 to iii gives a flat 9). Sus2/Sus4 combine (G9sus4).
+4. Switch Scale to Minor: the 9th is retargeted to the minor scale. Save the project, reload: 9ths come back. Undo/Redo each step.
+5. Export or drag the MIDI out: five notes per 9th chord.
+
+Not included: 11ths, 13ths, other alterations, or 9th inversions (a 9th chord is root position only). Minor-key numerals stay natural-minor style (i, III, VI, VII).
+
 ## Licensing
 
 JUCE is dual-licensed (AGPLv3 / commercial). Distributing a plugin built with JUCE requires either

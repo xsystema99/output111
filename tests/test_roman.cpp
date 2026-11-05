@@ -116,7 +116,7 @@ TEST_CASE("parseRomanNumeral: suspensions", "[roman][sus]") {
 TEST_CASE("parseRomanNumeral: rejects malformed or unsupported input with a message", "[roman]") {
     const char* bad[] = {
         "",         "   ",    "x",        "b",      "bb",       "VIII",   "iV",
-        "Io",       "i+",     "V9",       "V13",    "Vsus3",    "I7 ",    " I",
+        "Io",       "i+",     "V11",      "V13",    "Vsus3",    "I7 ",    " I",
         "Vsus44",   "Vsus4sus2", "viio" "sus4", "I+sus4", "vii\xC3\xB8" "sus4", "sus4",
         "vii\xC3\xB8" "6",  "vii\xC3\xB8" "maj7",   "I1",       "V5",
     };

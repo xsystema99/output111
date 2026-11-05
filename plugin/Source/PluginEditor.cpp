@@ -166,7 +166,11 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
             prog.blocks.at(i).chord = withSuspensionToggled(prog.blocks.at(i).chord, Suspension::Sus4);
         });
     };
-    ninthButton.setEnabled(false);  // 9th chords arrive with milestone 5 (extended harmony)
+    ninthButton.onClick = [this] {
+        applyToSelected("Toggle 9th", [](Progression& prog, std::size_t i) {
+            prog.blocks.at(i).chord = withNinthToggled(prog.key.mode, prog.blocks.at(i).chord);
+        });
+    };
     splitButton.onClick = [this] { splitClicked(); };
     duplicateButton.onClick = [this] { duplicateClicked(); };
     deleteButton.onClick = [this] { deleteClicked(); };
@@ -400,7 +404,7 @@ void ChordSketchEditor::refreshFromModel() {
     // selected chord
     selectedName.setText(current != nullptr ? juce::String(chordName(model.key, *current)) : juce::String(juce::CharPointer_UTF8("\xE2\x80\x93")),
                          juce::dontSendNotification);
-    for (auto* b : {&triadButton, &seventhButton, &splitButton, &duplicateButton, &deleteButton}) b->setEnabled(hasSelection);
+    for (auto* b : {&triadButton, &seventhButton, &ninthButton, &splitButton, &duplicateButton, &deleteButton}) b->setEnabled(hasSelection);
     const int chordOctave = hasSelection ? model.blocks[static_cast<std::size_t>(selected)].octave : 0;
     chordOctaveLabel.setText(hasSelection ? "Octave " + juce::String(chordOctave > 0 ? "+" : "") + juce::String(chordOctave) : juce::String("Octave"),
                              juce::dontSendNotification);
@@ -409,7 +413,8 @@ void ChordSketchEditor::refreshFromModel() {
     sus2Button.setEnabled(current != nullptr && canSuspend(*current));
     sus4Button.setEnabled(current != nullptr && canSuspend(*current));
     triadButton.setToggleState(current != nullptr && current->seventh == Seventh::None && current->suspension == Suspension::None, juce::dontSendNotification);
-    seventhButton.setToggleState(current != nullptr && current->seventh != Seventh::None, juce::dontSendNotification);
+    seventhButton.setToggleState(current != nullptr && current->seventh != Seventh::None && current->ninth == Ninth::None, juce::dontSendNotification);
+    ninthButton.setToggleState(current != nullptr && current->ninth != Ninth::None, juce::dontSendNotification);
     sus2Button.setToggleState(current != nullptr && current->suspension == Suspension::Sus2, juce::dontSendNotification);
     sus4Button.setToggleState(current != nullptr && current->suspension == Suspension::Sus4, juce::dontSendNotification);
 

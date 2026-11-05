@@ -48,6 +48,14 @@ Seventh diatonicSeventh(Mode mode, int degree) {
     return (mode == Mode::Major ? kMajorSevenths : kMinorSevenths)[degree - 1];
 }
 
+Ninth diatonicNinth(Mode mode, int degree) {
+    checkDegree(degree);
+    // The ninth is the scale note a step above the octave: a half step above the root's octave note is a flat 9.
+    const int root = scaleDegreeSemitones(mode, degree);
+    const int next = scaleDegreeSemitones(mode, degree % 7 + 1) + (degree == 7 ? 12 : 0);
+    return next - root == 1 ? Ninth::Minor : Ninth::Major;
+}
+
 ChordSpec diatonicChord(Mode mode, int degree) {
     ChordSpec chord;
     chord.degree = degree;
@@ -66,6 +74,7 @@ ChordSpec withDegree(Mode mode, const ChordSpec& chord, int degree) {
     result.accidental = 0;
     result.quality = diatonicQuality(mode, degree);
     if (chord.seventh != Seventh::None) result.seventh = diatonicSeventh(mode, degree);
+    if (chord.ninth != Ninth::None) result.ninth = diatonicNinth(mode, degree);
     if (!canSuspend(result)) result.suspension = Suspension::None;  // vii° cannot keep a suspension
     return clampInversion(result);
 }
@@ -73,14 +82,31 @@ ChordSpec withDegree(Mode mode, const ChordSpec& chord, int degree) {
 ChordSpec asTriad(const ChordSpec& chord) {
     ChordSpec result = chord;
     result.seventh = Seventh::None;
+    result.ninth = Ninth::None;
     result.suspension = Suspension::None;
     return clampInversion(result);
 }
 
 ChordSpec withSeventhToggled(Mode mode, const ChordSpec& chord) {
     ChordSpec result = chord;
+    if (chord.ninth != Ninth::None) {  // a ninth chord drops back to its plain seventh chord
+        result.ninth = Ninth::None;
+        return result;
+    }
     result.seventh = chord.seventh == Seventh::None ? diatonicSeventh(mode, chord.degree) : Seventh::None;
     return clampInversion(result);
+}
+
+ChordSpec withNinthToggled(Mode mode, const ChordSpec& chord) {
+    ChordSpec result = chord;
+    if (chord.ninth != Ninth::None) {
+        result.ninth = Ninth::None;
+        return result;
+    }
+    if (result.seventh == Seventh::None || result.seventh == Seventh::Diminished) result.seventh = diatonicSeventh(mode, chord.degree);
+    result.ninth = diatonicNinth(mode, chord.degree);
+    result.inversion = 0;
+    return result;
 }
 
 bool canSuspend(const ChordSpec& chord) {
@@ -103,6 +129,9 @@ void changeMode(Progression& progression, Mode newMode) {
         if (isDiatonic(oldMode, chord)) {
             if (chord.seventh != Seventh::None && chord.seventh == diatonicSeventh(oldMode, chord.degree)) {
                 chord.seventh = diatonicSeventh(newMode, chord.degree);
+            }
+            if (chord.ninth != Ninth::None && chord.ninth == diatonicNinth(oldMode, chord.degree)) {
+                chord.ninth = diatonicNinth(newMode, chord.degree);
             }
             chord.quality = diatonicQuality(newMode, chord.degree);
             if (!canSuspend(chord)) chord.suspension = Suspension::None;
@@ -131,7 +160,22 @@ std::string chordName(const Key& key, const ChordSpec& chord) {
                        : chord.accidental > 0 ? spell(false, root)
                                               : noteName(key, root);
 
-    if (chord.suspension != Suspension::None) {
+    if (chord.ninth != Ninth::None) {
+        // 9 / 7b9 for a minor seventh, maj9 / maj7b9 for a major seventh
+        const bool flat = chord.ninth == Ninth::Minor;
+        const bool major7 = chord.seventh == Seventh::Major;
+        const std::string extFlat = std::string(major7 ? "maj" : "") + (flat ? "7b9" : "9");
+        if (chord.suspension != Suspension::None) {
+            name += extFlat + (chord.suspension == Suspension::Sus2 ? "sus2" : "sus4");
+        } else {
+            switch (chord.quality) {
+                case Quality::Major: name += extFlat; break;
+                case Quality::Minor: name += major7 ? "m(" + extFlat + ")" : "m" + extFlat; break;
+                case Quality::Diminished: name += major7 ? "dim(" + extFlat + ")" : (flat ? "m7b5b9" : "m9b5"); break;
+                case Quality::Augmented: name += "aug" + extFlat; break;
+            }
+        }
+    } else if (chord.suspension != Suspension::None) {
         if (chord.seventh == Seventh::Minor) name += "7";
         else if (chord.seventh == Seventh::Major) name += "maj7";
         else if (chord.seventh == Seventh::Diminished) name += "dim7";

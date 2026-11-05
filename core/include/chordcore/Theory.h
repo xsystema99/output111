@@ -25,6 +25,10 @@ enum class Seventh { None, Minor, Major, Diminished };
 /// The fifth still follows the chord quality; a seventh may be combined (e.g. V7sus4).
 enum class Suspension { None, Sus2, Sus4 };
 
+/// Ninth above the root, stacked on a seventh (Minor/Major seventh only; root position only).
+/// Value = interval in semitones: Minor 13 (flat 9), Major 14.
+enum class Ninth { None, Minor, Major };
+
 /// A chord described relative to a key (key-independent until resolved with voiceChord()).
 struct ChordSpec {
     int degree = 1;      ///< scale degree 1..7
@@ -33,13 +37,15 @@ struct ChordSpec {
     Seventh seventh = Seventh::None;
     int inversion = 0;   ///< 0 = root position; up to 2 for triads, 3 for seventh chords
     Suspension suspension = Suspension::None;
+    Ninth ninth = Ninth::None;  ///< needs a minor or major seventh and inversion 0
 
     bool isValid() const noexcept;
 };
 
 inline bool operator==(const ChordSpec& a, const ChordSpec& b) noexcept {
     return a.degree == b.degree && a.accidental == b.accidental && a.quality == b.quality &&
-           a.seventh == b.seventh && a.inversion == b.inversion && a.suspension == b.suspension;
+           a.seventh == b.seventh && a.inversion == b.inversion && a.suspension == b.suspension &&
+           a.ninth == b.ninth;
 }
 inline bool operator!=(const ChordSpec& a, const ChordSpec& b) noexcept { return !(a == b); }
 

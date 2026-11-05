@@ -29,7 +29,10 @@ juce::String typeLabel(const ChordSpec& c) {
     juce::String label;
     if (c.suspension == Suspension::Sus2) label = "sus2";
     else if (c.suspension == Suspension::Sus4) label = "sus4";
-    if (c.seventh != Seventh::None) label = label.isEmpty() ? juce::String("7th") : label + " 7th";
+    if (c.seventh != Seventh::None) {
+        const juce::String ext = c.ninth != Ninth::None ? "9th" : "7th";
+        label = label.isEmpty() ? ext : label + " " + ext;
+    }
     return label;
 }
 
