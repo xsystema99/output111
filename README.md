@@ -197,7 +197,7 @@ Same routing as the milestone 3 checklist (track 1 = ChordSketch, track 2 = an i
 6. **Save the Live set, reopen it**: length, octaves and per-chord octaves are restored.
 7. Copy / Paste progression only carries chords and lengths, not octaves: pasted chords come back at octave 0 (known limit).
 
-## Manual test checklist: precision chord grid (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: precision chord grid (Ableton Live 12.4.16, Windows) — user reports it works (no per-step detail given)
 
 Nothing below is claimed to work in Live until you have run it. The tick maths, snap, ruler, zoom/scroll, group edits, MIDI export, save/reload and undo are covered by automated tests (tests/test_grid.cpp, tests A-I); the mouse/keyboard behaviour and the host checks are not.
 
