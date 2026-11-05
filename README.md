@@ -19,7 +19,8 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Loads in Ableton Live | **Loads and opens** (user-reported on Live 12.4.16, the target version, commit `45d87de`). "Export MIDI..." button works (user-reported). Exported `.mid` imports with correct chords, timing, tempo and octave (user-reported) | manual checklist below |
 | Live MIDI output from `processBlock`, synced to the host transport | Core scheduler **unit-tested** (81 tests incl. start, stop, locate, loop, tempo, exact sample positions, agreement with the exported file); plugin wiring **syntax-checked only** | **Works in Live 12.4.16** (user-reported: MIDI routed to another track plays correctly). Checklist below |
 | Project state: versioned JSON save/restore, undo/redo (snapshot history with coalescing), chord-text entry | Core **unit-tested** (117 tests total with g++ Debug and clang Release, `-Werror`; mutation-checked: 8 injected bugs all caught). Plugin wiring (host save/load, thread hand-over, editor) **syntax-checked only until CI builds it** | **Tested in Live 12.4.16: user reports the milestone 4 checklist completed with no errors** (per-step results not itemised) |
-| Timeline UI, drag-out of `.mid` | Not implemented (milestones 6, 7) | |
+| Timeline UI after the supplied mockup: coloured chord cards, 7-chord palette, Triad/7th/Sus2/Sus4, scale switch, move/resize/split/duplicate/delete/add with grid snapping, playhead | All editing rules **unit-tested** in core (Timeline, ChordEdit: 145+ tests with mutation checks). Painting and mouse handling **syntax-checked only until CI builds it**; I could not render it here | **Not yet seen or tried in Live**: checklist for milestone 6 below |
+| Drag-out of `.mid`, Preview audition, 9th chords | Not implemented (milestone 7; Preview is a follow-up; 9ths are milestone 5). The "9th" button is shown disabled | |
 
 ## Layout
 
@@ -152,6 +153,24 @@ Install the new build (replace `C:\Program Files\Common Files\VST3\ChordSketch.v
 
 Not covered here: saved states from other versions (only version 1 exists); a newer file in an older
 plugin is refused with a message and the current project is kept.
+
+## Manual test checklist: milestone 6, timeline UI (Ableton Live 12.4.16, Windows) — not yet run
+
+Install the new CI build as before. The window is 640 x 620 and not resizable.
+
+1. Open the plugin: dark window, header, Key/Scale/Meter, four coloured cards (C major: I, V, vi, IV), a palette of seven coloured chords. **Please send a screenshot**: I could not look at it, so layout and colours are unverified.
+2. Click each card: it gets a white outline; the name (top right of "Selected chord") and the pills update.
+3. Click palette chords: the selected card changes numeral, colour and chord name. In minor the palette reads i, ii°, III, iv, v, VI, VII.
+4. Change **Scale** to Minor: diatonic chords follow (I V vi IV becomes i v VI iv); **Key**: names change, flats vs sharps follow the key.
+5. **Triad / 7th / Sus2 / Sus4**: toggles work, Sus is greyed on diminished chords, **9th** is intentionally disabled.
+6. **Drag a card's right edge** to shorten it (gap appears with a faint "+"); drag it back; drag a card's body between neighbours (it stops at them, never jumps over); try Snap: Beat / Off.
+7. **Click a "+" slot**: a tonic chord appears there. **Split**, **Duplicate** (needs free room after the card), **Delete**.
+8. **Undo** after each of the above: one step each, drags are one step. Redo works.
+9. Press play in Live: the white **playhead line** follows the transport; MIDI still plays the edited chords (route as in the milestone 3 checklist), and editing during playback leaves no stuck notes.
+10. **Copy progression**, then **Paste** after editing: the progression returns. Save the set, reopen: the edited project is restored.
+11. **Export MIDI...** still writes a file that matches what plays.
+
+Known limits: the timeline always fits the whole progression in its width (no scrolling or zoom); the last card can be lengthened by dragging past the right edge or with Duplicate; Preview (audition) is not built; the meter (4/4) is shown but not editable.
 
 ## Licensing
 

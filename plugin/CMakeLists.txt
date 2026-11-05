@@ -40,7 +40,10 @@ target_sources(ChordSketch PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
-    Source/PluginEditor.h)
+    Source/PluginEditor.h
+    Source/TimelineComponent.cpp
+    Source/TimelineComponent.h
+    Source/UiKit.h)
 
 target_compile_definitions(ChordSketch PUBLIC
     JUCE_WEB_BROWSER=0

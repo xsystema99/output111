@@ -8,7 +8,9 @@ add_library(chordcore STATIC
     src/Serialization.cpp
     src/Document.cpp
     src/ProgressionText.cpp
-    src/MidiFile.cpp)
+    src/MidiFile.cpp
+    src/Timeline.cpp
+    src/ChordEdit.cpp)
 
 target_include_directories(chordcore PUBLIC include)
 target_compile_features(chordcore PUBLIC cxx_std_17)

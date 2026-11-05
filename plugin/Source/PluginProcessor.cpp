@@ -32,6 +32,14 @@ void ChordSketchProcessor::rebuildPlaybackLocked() {
     scheduler.setNotes(std::move(notes));
 }
 
+ChordSketchProcessor::Playhead ChordSketchProcessor::getPlayhead() const noexcept {
+    Playhead head;
+    head.valid = playheadValid.load(std::memory_order_relaxed);
+    head.playing = playheadPlaying.load(std::memory_order_relaxed);
+    head.ppq = playheadPpq.load(std::memory_order_relaxed);
+    return head;
+}
+
 chordcore::Progression ChordSketchProcessor::getProgression() const {
     const juce::CriticalSection::ScopedLockType lock(documentLock);
     return document.progression();
@@ -121,17 +129,23 @@ void ChordSketchProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     block.bpm = fallbackTempo.load();  // fallback only: the host tempo is used whenever it is provided
 
     // Without a host position there is nothing to synchronise to, so the block is treated as stopped.
+    bool havePosition = false;
     if (auto* hostPlayHead = getPlayHead()) {
         if (const auto position = hostPlayHead->getPosition()) {
             const auto ppq = position->getPpqPosition();
             if (ppq.hasValue()) {
                 block.playing = position->getIsPlaying();
                 block.ppqStart = *ppq;
+                havePosition = true;
                 const auto bpm = position->getBpm();
                 if (bpm.hasValue()) block.bpm = *bpm;
             }
         }
     }
+
+    playheadPpq.store(block.ppqStart, std::memory_order_relaxed);
+    playheadPlaying.store(block.playing, std::memory_order_relaxed);
+    playheadValid.store(havePosition, std::memory_order_relaxed);
 
     // Never block the audio thread: if an edit is swapping the note list, skip this block.
     const juce::SpinLock::ScopedTryLockType lock(schedulerLock);

@@ -33,8 +33,17 @@ public:
         std::string redoLabel;
     };
 
+    /// Where the host transport is, as last seen by the audio thread (for the editor's playhead line).
+    struct Playhead {
+        bool valid = false;    ///< the host reports a musical position
+        bool playing = false;
+        double ppq = 0.0;      ///< quarter notes from the host's origin
+    };
+
     ChordSketchProcessor();
     ~ChordSketchProcessor() override = default;
+
+    Playhead getPlayhead() const noexcept;
 
     // ---- project access (any non-audio thread)
     /// A copy of the current progression.
@@ -97,6 +106,10 @@ private:
 
     std::atomic<double> fallbackTempo{120.0};  // read by the audio thread, written under documentLock
     double currentSampleRate = 44100.0;        // written in prepareToPlay, read by the audio thread
+
+    std::atomic<bool> playheadValid{false};
+    std::atomic<bool> playheadPlaying{false};
+    std::atomic<double> playheadPpq{0.0};
 
     juce::ChangeBroadcaster broadcaster;
 

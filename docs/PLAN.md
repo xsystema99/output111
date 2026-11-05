@@ -60,7 +60,7 @@ Key rules:
 | M3 (**implemented**) | Transport-synchronised MIDI output in `processBlock` from the same `NoteEvent` list (sample-accurate offsets, loop/jump/stop handling, stuck-note protection) | Scheduler unit tests with synthetic playheads; manual Live test |
 | M4 (**implemented**, Live check passed per user report) | State persistence (versioned JSON), undo/redo | Round-trip, golden-format, hostile-input and undo property tests; manual save/reload in Live |
 | M5 | Extended harmony: 9ths, alterations, secondary dominants, minor-key convention options | Theory tests per chord type |
-| M6 | Timeline UI: draggable/resizable chord blocks, snapping, Roman numeral entry | UI is a thin layer over the model |
+| M6 (**implemented**, awaiting Live check) | Timeline UI after the user's mockup: draggable/resizable chord cards, snapping, palette, chord types | Editing rules in core with tests; UI is a thin layer; manual check in Live |
 | M7 | Native file drag-out from the plugin (`performExternalDragDropOfFiles`), Ableton verification | Manual test in Live 12.4.16 |
 
 Advanced features (M2+) are intentionally not started until M1's export has been independently checked.
@@ -113,6 +113,28 @@ Advanced features (M2+) are intentionally not started until M1's export has been
   were sounding (tested). Rebuild + install happen inside the document lock so note lists install in edit order.
 - **Known trade-offs.** `setNotes()` allocates while the audio thread is locked out (microseconds, only on edit).
   A skipped block looks like a position jump to the scheduler, which handles it as a locate (release + restart).
+
+## 4d. Milestone 6 design notes
+
+- **Where the rules live.** `Timeline.h` (snap grid, move/resize/add/split/duplicate/delete, pixel<->tick mapping,
+  hit testing) and `ChordEdit.h` (diatonic quality/seventh per degree, palette/type-button rules, major<->minor
+  switching, chord names) are JUCE-free and unit/property/mutation tested. `TimelineComponent` only paints and
+  forwards mouse events.
+- **Single lane, clamped drags.** Blocks never overlap; a dragged block stops at its neighbour instead of
+  jumping over it, which keeps every intermediate state valid. Reordering chords is therefore done by delete/add or
+  paste for now.
+- **Drags are previewed locally** and committed as one `Document` edit on mouse-up: one undo step, and playback is
+  not rebuilt on every mouse move.
+- **Changing scale** re-spells chords that are diatonic to the old scale (including their native 7th) and leaves
+  borrowed/altered chords alone (a deliberate V in minor stays V). Suspensions that would land on a diminished chord
+  are dropped.
+- **Spelling.** Flats vs sharps follow the key signature (relative major); an explicitly flatted chord (bVII) is
+  always spelled with flats. A test found this the first time: bVII in C was shown as A#.
+- **Mockup deviations.** Export, Undo/Redo, tempo and snap are added in a tools row, since export is a core
+  requirement; the Preview button is not built (it needs on-demand MIDI audition in the audio thread) and "9th" is
+  disabled until M5; "Copy progression" copies the Roman-numeral text, and Paste reads it back.
+- **Not verified.** Visual appearance and mouse behaviour have not been seen: JUCE cannot be built or run in the
+  authoring environment; CI compiles it and the user tests it in Live.
 
 ## 5. Risks and open decisions
 
