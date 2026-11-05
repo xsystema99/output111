@@ -45,6 +45,30 @@ Bytes metaEvent(std::uint8_t type, const Bytes& payload) {
     return e;
 }
 
+void sortEvents(std::vector<RawEvent>& events) {
+    std::stable_sort(events.begin(), events.end(), [](const RawEvent& a, const RawEvent& b) {
+        if (a.tick != b.tick) return a.tick < b.tick;
+        if (a.order != b.order) return a.order < b.order;
+        return a.pitch < b.pitch;
+    });
+}
+
+void appendTrack(Bytes& file, std::vector<RawEvent>& events) {
+    sortEvents(events);
+    Bytes track;
+    Tick previousTick = 0;
+    for (const auto& event : events) {
+        const Tick delta = event.tick - previousTick;
+        if (delta < 0 || delta > 0x0FFFFFFF) throw std::out_of_range("delta time not representable");
+        appendVariableLengthQuantity(track, static_cast<std::uint32_t>(delta));
+        track.insert(track.end(), event.bytes.begin(), event.bytes.end());
+        previousTick = event.tick;
+    }
+    putTag(file, "MTrk");
+    put32(file, static_cast<std::uint32_t>(track.size()));
+    file.insert(file.end(), track.begin(), track.end());
+}
+
 int log2OfPowerOfTwo(int v) {
     int n = 0;
     while (v > 1) {
@@ -73,17 +97,13 @@ int midiKeySignatureSharps(const Key& key) {
     return sharps;
 }
 
-std::vector<std::uint8_t> buildMidiFile(const Progression& progression, const std::vector<NoteEvent>& notes,
-                                        const MidiExportOptions& options) {
-    const auto errors = progression.validate();
-    if (!errors.empty()) throw std::invalid_argument("invalid progression: " + errors.front());
+namespace {
 
-    std::vector<RawEvent> events;
-
-    // ---- tick 0 meta events -------------------------------------------------------------------
-    if (!options.trackName.empty()) {
-        events.push_back({0, kMeta, 0, metaEvent(0x03, Bytes(options.trackName.begin(), options.trackName.end()))});
-    }
+/// Track name, time signature, tempo and (optionally) key signature at tick 0.
+void addHeaderEvents(std::vector<RawEvent>& events, const Progression& progression, const std::string& trackName,
+                     bool timing, bool writeKeySignature) {
+    if (!trackName.empty()) events.push_back({0, kMeta, 0, metaEvent(0x03, Bytes(trackName.begin(), trackName.end()))});
+    if (!timing) return;
 
     const auto& ts = progression.timeSignature;
     events.push_back({0, kMeta, 0,
@@ -97,15 +117,15 @@ std::vector<std::uint8_t> buildMidiFile(const Progression& progression, const st
                                        static_cast<std::uint8_t>((microsPerQuarter >> 8) & 0xFF),
                                        static_cast<std::uint8_t>(microsPerQuarter & 0xFF)})});
 
-    if (options.writeKeySignature) {
+    if (writeKeySignature) {
         const int sharps = midiKeySignatureSharps(progression.key);
         events.push_back({0, kMeta, 0,
                           metaEvent(0x59, {static_cast<std::uint8_t>(static_cast<std::int8_t>(sharps)),
                                            static_cast<std::uint8_t>(progression.key.mode == Mode::Minor ? 1 : 0)})});
     }
+}
 
-    // ---- notes --------------------------------------------------------------------------------
-    Tick lastEnd = 0;
+void addNoteEvents(std::vector<RawEvent>& events, const std::vector<NoteEvent>& notes, Tick& lastEnd) {
     for (const auto& note : notes) {
         if (note.pitch < 0 || note.pitch > 127) throw std::invalid_argument("note pitch must be 0..127");
         if (note.velocity < 1 || note.velocity > 127) throw std::invalid_argument("note velocity must be 1..127");
@@ -122,37 +142,31 @@ std::vector<std::uint8_t> buildMidiFile(const Progression& progression, const st
         events.push_back({end, kNoteOff, note.pitch,
                           {static_cast<std::uint8_t>(0x80 | note.channel), static_cast<std::uint8_t>(note.pitch), 0}});
     }
+}
 
-    // ---- end of track -------------------------------------------------------------------------
+void checkProgression(const Progression& progression) {
+    const auto errors = progression.validate();
+    if (!errors.empty()) throw std::invalid_argument("invalid progression: " + errors.front());
+}
+
+}  // namespace
+
+std::vector<std::uint8_t> buildMidiFile(const Progression& progression, const std::vector<NoteEvent>& notes,
+                                        const MidiExportOptions& options) {
+    checkProgression(progression);
+    std::vector<RawEvent> events;
+    addHeaderEvents(events, progression, options.trackName, true, options.writeKeySignature);
+    Tick lastEnd = 0;
+    addNoteEvents(events, notes, lastEnd);
     events.push_back({std::max(progression.lengthTicks(), lastEnd), kEndOfTrack, 0, {0xFF, 0x2F, 0x00}});
 
-    std::stable_sort(events.begin(), events.end(), [](const RawEvent& a, const RawEvent& b) {
-        if (a.tick != b.tick) return a.tick < b.tick;
-        if (a.order != b.order) return a.order < b.order;
-        return a.pitch < b.pitch;
-    });
-
-    // ---- track chunk --------------------------------------------------------------------------
-    Bytes track;
-    Tick previousTick = 0;
-    for (const auto& event : events) {
-        const Tick delta = event.tick - previousTick;
-        if (delta < 0 || delta > 0x0FFFFFFF) throw std::out_of_range("delta time not representable");
-        appendVariableLengthQuantity(track, static_cast<std::uint32_t>(delta));
-        track.insert(track.end(), event.bytes.begin(), event.bytes.end());
-        previousTick = event.tick;
-    }
-
-    // ---- file ---------------------------------------------------------------------------------
     Bytes file;
     putTag(file, "MThd");
     put32(file, 6);
     put16(file, 0);  // format 0
     put16(file, 1);  // one track
     put16(file, static_cast<unsigned>(kTicksPerQuarter));
-    putTag(file, "MTrk");
-    put32(file, static_cast<std::uint32_t>(track.size()));
-    file.insert(file.end(), track.begin(), track.end());
+    appendTrack(file, events);
     return file;
 }
 
@@ -160,6 +174,23 @@ std::vector<std::uint8_t> exportProgressionToMidi(const Progression& progression
                                                   const MidiExportOptions& options) {
     return buildMidiFile(progression, generateNotes(progression, generation), options);
 }
+
+namespace {
+
+std::vector<NoteEvent> clipToBars(const std::vector<NoteEvent>& notes, Tick from, Tick to) {
+    std::vector<NoteEvent> clipped;
+    for (NoteEvent n : notes) {
+        const Tick end = n.startTick + n.lengthTicks;
+        if (end <= from || n.startTick >= to) continue;
+        const Tick start = std::max(n.startTick, from);
+        n.lengthTicks = std::min(end, to) - start;
+        n.startTick = start - from;
+        clipped.push_back(n);
+    }
+    return clipped;
+}
+
+}  // namespace
 
 std::vector<std::uint8_t> exportProgressionRangeToMidi(const Progression& progression, int firstBar, int lastBar,
                                                        const GenerationOptions& generation,
@@ -171,20 +202,87 @@ std::vector<std::uint8_t> exportProgressionRangeToMidi(const Progression& progre
     const Tick from = static_cast<Tick>(firstBar - 1) * bar;
     const Tick to = static_cast<Tick>(lastBar) * bar;
 
-    std::vector<NoteEvent> clipped;
-    for (NoteEvent n : generateNotes(progression, generation)) {  // the one note generator
-        const Tick end = n.startTick + n.lengthTicks;
-        if (end <= from || n.startTick >= to) continue;
-        const Tick start = std::max(n.startTick, from);
-        n.lengthTicks = std::min(end, to) - start;
-        n.startTick = start - from;
-        clipped.push_back(n);
-    }
+    const auto clipped = clipToBars(generateNotes(progression, generation), from, to);  // the one note generator
 
     Progression header = progression;  // tempo, meter and key only; its length defines the end-of-track
     header.blocks.clear();
+    header.melody.clear();
     header.lengthBars = lastBar - firstBar + 1;
     return buildMidiFile(header, clipped, options);
+}
+
+const char* exportFileName(ExportPart part) {
+    switch (part) {
+        case ExportPart::Chords: return "Chords.mid";
+        case ExportPart::Melody: return "Melody.mid";
+        case ExportPart::Combined: return "Combined.mid";
+    }
+    return "Combined.mid";
+}
+
+std::vector<std::uint8_t> exportProject(const Progression& progression, const ProjectExportOptions& options,
+                                        const GenerationOptions& generation) {
+    checkProgression(progression);
+    const bool ranged = options.firstBar != 0 || options.lastBar != 0;
+    if (ranged && (options.firstBar < 1 || options.lastBar < options.firstBar || options.lastBar > kMaxLengthBars)) {
+        throw std::invalid_argument("bar range must satisfy 1 <= first <= last <= 256");
+    }
+
+    // The same events playback uses; the chord channel comes from the project settings.
+    GenerationOptions chordOptions = generation;
+    chordOptions.channel = progression.melodySettings.chordChannel - 1;
+    std::vector<NoteEvent> chords = generateNotes(progression, chordOptions);
+    std::vector<NoteEvent> melody = generateMelodyNotes(progression);
+    if (options.melodyOnChannel1) {
+        for (auto& n : melody) n.channel = 0;
+    }
+
+    Progression header = progression;
+    if (ranged) {
+        const Tick bar = progression.timeSignature.ticksPerBar();
+        const Tick from = static_cast<Tick>(options.firstBar - 1) * bar;
+        const Tick to = static_cast<Tick>(options.lastBar) * bar;
+        chords = clipToBars(chords, from, to);
+        melody = clipToBars(melody, from, to);
+        header.blocks.clear();
+        header.melody.clear();
+        header.lengthBars = options.lastBar - options.firstBar + 1;
+    }
+    const Tick endTick = header.lengthTicks();
+
+    if (options.part == ExportPart::Chords || options.part == ExportPart::Melody) {
+        MidiExportOptions single;
+        single.trackName = options.part == ExportPart::Chords ? "Chords" : "Melody";
+        single.writeKeySignature = options.writeKeySignature;
+        return buildMidiFile(header, options.part == ExportPart::Chords ? chords : melody, single);
+    }
+
+    // Combined: Format 1. Track 0 carries name, meter, tempo and key for every track; then Chords and Melody.
+    std::vector<RawEvent> conductor;
+    addHeaderEvents(conductor, header, "ChordSketch", true, options.writeKeySignature);
+    conductor.push_back({endTick, kEndOfTrack, 0, {0xFF, 0x2F, 0x00}});
+
+    auto noteTrack = [&](const char* name, const std::vector<NoteEvent>& notes) {
+        std::vector<RawEvent> events;
+        addHeaderEvents(events, header, name, false, false);
+        Tick lastEnd = 0;
+        addNoteEvents(events, notes, lastEnd);
+        events.push_back({std::max(endTick, lastEnd), kEndOfTrack, 0, {0xFF, 0x2F, 0x00}});
+        return events;
+    };
+    auto chordTrack = noteTrack("Chords", chords);
+    auto melodyTrack = noteTrack("Melody", melody);
+
+    Bytes file;
+    putTag(file, "MThd");
+    put32(file, 6);
+    put16(file, 1);  // format 1
+    put16(file, 3);  // conductor + chords + melody
+    put16(file, static_cast<unsigned>(kTicksPerQuarter));
+    appendTrack(file, conductor);
+    appendTrack(file, chordTrack);
+    appendTrack(file, melodyTrack);
+    return file;
 }
 
 }  // namespace chordcore

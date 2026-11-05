@@ -101,9 +101,8 @@ std::string ChordSketchProcessor::getLastLoadError() const {
     return lastLoadError;
 }
 
-std::vector<std::uint8_t> ChordSketchProcessor::exportMidiBytes(int firstBar, int lastBar) const {
-    if (firstBar == 0 && lastBar == 0) return chordcore::exportProgressionToMidi(getProgression());
-    return chordcore::exportProgressionRangeToMidi(getProgression(), firstBar, lastBar);
+std::vector<std::uint8_t> ChordSketchProcessor::exportMidiBytes(const chordcore::ProjectExportOptions& options) const {
+    return chordcore::exportProject(getProgression(), options);
 }
 
 void ChordSketchProcessor::auditionChord(const chordcore::ChordSpec& chord, int blockOctave) {

@@ -4,9 +4,15 @@
 
 #include <chordcore/Document.h>
 #include <chordcore/MelodyEdit.h>
+#include <chordcore/MidiFile.h>
 #include <chordcore/NoteEngine.h>
 #include <chordcore/Progression.h>
 #include <chordcore/Serialization.h>
+
+#include "support/SmfParser.h"
+
+#include <algorithm>
+#include <stdexcept>
 
 using namespace chordcore;
 
@@ -285,4 +291,162 @@ TEST_CASE("melody: project notes use separate channels and honour mutes (test F)
     GenerationOptions o;
     o.channel = 4;
     CHECK(generateProjectNotes(p) == generateNotes(p, o));
+}
+
+namespace {
+
+Progression withMelody() {
+    auto p = base();  // 4 bars, 3840 ticks each, C major I V vi IV
+    p.melody = {note(72, 0, 480), note(74, 480, 480), note(76, 3840 + 960, 1920), note(79, 3 * 3840, 960)};
+    return p;
+}
+
+std::string trackName(const smf::Track& t) {
+    const auto names = smf::metaEvents(t, 0x03);
+    if (names.empty()) return {};
+    return std::string(names[0]->data.begin(), names[0]->data.end());
+}
+
+std::uint64_t endOf(const smf::Track& t) { return smf::metaEvents(t, 0x2F).at(0)->tick; }
+
+}  // namespace
+
+TEST_CASE("export: Chords.mid has only chords on the chord channel (test G)", "[melody][export]") {
+    auto p = withMelody();
+    ProjectExportOptions o;
+    o.part = ExportPart::Chords;
+    const auto file = smf::parse(exportProject(p, o));
+    CHECK(file.format == 0);
+    REQUIRE(file.tracks.size() == 1);
+    CHECK(trackName(file.tracks[0]) == "Chords");
+    const auto notes = smf::extractNotes(file.tracks[0]);
+    CHECK(notes.size() == 12);
+    for (const auto& n : notes) CHECK(n.channel == 0);
+    CHECK(smf::metaEvents(file.tracks[0], 0x51).size() == 1);
+}
+
+TEST_CASE("export: Melody.mid has only melody, on channel 2 by default or 1 for compatibility", "[melody][export]") {
+    auto p = withMelody();
+    ProjectExportOptions o;
+    o.part = ExportPart::Melody;
+    auto file = smf::parse(exportProject(p, o));
+    CHECK(file.format == 0);
+    REQUIRE(file.tracks.size() == 1);
+    CHECK(trackName(file.tracks[0]) == "Melody");
+    auto notes = smf::extractNotes(file.tracks[0]);
+    REQUIRE(notes.size() == 4);
+    for (const auto& n : notes) CHECK(n.channel == 1);
+    CHECK(notes[0].pitch == 72);
+    CHECK(notes[0].length == 480);
+    CHECK(notes[2].start == 3840 + 960);
+    CHECK(notes[2].length == 1920);
+    CHECK(smf::metaEvents(file.tracks[0], 0x51).size() == 1);  // standalone files carry tempo
+
+    o.melodyOnChannel1 = true;
+    file = smf::parse(exportProject(p, o));
+    notes = smf::extractNotes(file.tracks[0]);
+    for (const auto& n : notes) CHECK(n.channel == 0);
+}
+
+TEST_CASE("export: Combined.mid is Format 1 with shared tempo and named tracks", "[melody][export]") {
+    const auto p = withMelody();
+    const auto file = smf::parse(exportProject(p));
+    CHECK(file.format == 1);
+    REQUIRE(file.tracks.size() == 3);
+    CHECK(file.division == 960);
+    CHECK(smf::extractNotes(file.tracks[0]).empty());
+    CHECK(smf::metaEvents(file.tracks[0], 0x51).size() == 1);
+    CHECK(smf::metaEvents(file.tracks[0], 0x58).size() == 1);
+    CHECK(smf::metaEvents(file.tracks[0], 0x59).size() == 1);
+    CHECK(trackName(file.tracks[1]) == "Chords");
+    CHECK(trackName(file.tracks[2]) == "Melody");
+    for (std::size_t i = 1; i < 3; ++i) {
+        CHECK(smf::metaEvents(file.tracks[i], 0x51).empty());
+        CHECK(smf::metaEvents(file.tracks[i], 0x58).empty());
+    }
+    const auto chords = smf::extractNotes(file.tracks[1]);
+    const auto melody = smf::extractNotes(file.tracks[2]);
+    CHECK(chords.size() == 12);
+    CHECK(melody.size() == 4);
+    for (const auto& n : chords) CHECK(n.channel == 0);
+    for (const auto& n : melody) CHECK(n.channel == 1);
+    CHECK(endOf(file.tracks[0]) == endOf(file.tracks[1]));
+    CHECK(endOf(file.tracks[1]) == endOf(file.tracks[2]));
+    CHECK(endOf(file.tracks[0]) == static_cast<std::uint64_t>(p.lengthTicks()));
+}
+
+TEST_CASE("export: every part is the playback events (same representation)", "[melody][export]") {
+    auto p = withMelody();
+    p.melodySettings.chordChannel = 5;
+    p.melodySettings.melodyChannel = 9;
+    const auto playback = generateProjectNotes(p);
+    const auto file = smf::parse(exportProject(p));
+    auto chords = smf::extractNotes(file.tracks[1]);
+    auto melody = smf::extractNotes(file.tracks[2]);
+    REQUIRE(chords.size() + melody.size() == playback.size());
+    std::vector<NoteEvent> fromFile;
+    for (const auto& n : chords) fromFile.push_back({n.pitch, static_cast<Tick>(n.start), static_cast<Tick>(n.length), n.velocity, n.channel});
+    for (const auto& n : melody) fromFile.push_back({n.pitch, static_cast<Tick>(n.start), static_cast<Tick>(n.length), n.velocity, n.channel});
+    for (const auto& e : playback) {
+        const auto it = std::find(fromFile.begin(), fromFile.end(), e);
+        REQUIRE(it != fromFile.end());
+        fromFile.erase(it);
+    }
+    CHECK(fromFile.empty());
+    for (const auto& n : chords) CHECK(n.channel == 4);
+    for (const auto& n : melody) CHECK(n.channel == 8);
+}
+
+TEST_CASE("export: parts are independent and ignore live mutes", "[melody][export]") {
+    auto p = withMelody();
+    ProjectExportOptions mel;
+    mel.part = ExportPart::Melody;
+    const auto before = exportProject(p, mel);
+    p.blocks[0].chord = ChordSpec{4, 0, Quality::Major, Seventh::None, 0};  // change a chord
+    CHECK(exportProject(p, mel) == before);                                  // melody file unchanged
+    ProjectExportOptions ch;
+    ch.part = ExportPart::Chords;
+    const auto chordsBefore = exportProject(p, ch);
+    p.melody.clear();
+    CHECK(exportProject(p, ch) == chordsBefore);  // chord file unchanged when the melody is removed
+
+    p = withMelody();
+    p.melodySettings.muteChords = true;
+    p.melodySettings.muteMelody = true;
+    const auto file = smf::parse(exportProject(p));
+    CHECK(smf::extractNotes(file.tracks[1]).size() == 12);
+    CHECK(smf::extractNotes(file.tracks[2]).size() == 4);
+}
+
+TEST_CASE("export: bar range clips both parts and keeps the shared length", "[melody][export]") {
+    auto p = withMelody();
+    ProjectExportOptions o;
+    o.firstBar = 2;
+    o.lastBar = 2;
+    const auto file = smf::parse(exportProject(p, o));
+    const auto chords = smf::extractNotes(file.tracks[1]);
+    const auto melody = smf::extractNotes(file.tracks[2]);
+    CHECK(chords.size() == 3);  // bar 2 holds only the V chord
+    REQUIRE(melody.size() == 1);
+    CHECK(melody[0].pitch == 76);
+    CHECK(melody[0].start == 960);  // 3840+960 shifted by one bar
+    CHECK(melody[0].length == 1920);
+    CHECK(endOf(file.tracks[0]) == 3840);
+    CHECK(endOf(file.tracks[2]) == 3840);
+
+    o.lastBar = 1;
+    CHECK_THROWS_AS(exportProject(p, o), std::invalid_argument);
+    o.firstBar = 0;
+    o.lastBar = 300;
+    CHECK_THROWS_AS(exportProject(p, o), std::invalid_argument);
+}
+
+TEST_CASE("export: file names and empty melody", "[melody][export]") {
+    CHECK(std::string(exportFileName(ExportPart::Chords)) == "Chords.mid");
+    CHECK(std::string(exportFileName(ExportPart::Melody)) == "Melody.mid");
+    CHECK(std::string(exportFileName(ExportPart::Combined)) == "Combined.mid");
+    const auto p = base();
+    const auto file = smf::parse(exportProject(p));
+    CHECK(file.tracks.size() == 3);
+    CHECK(smf::extractNotes(file.tracks[2]).empty());
 }

@@ -8,6 +8,7 @@
 
 #include <chordcore/Document.h>
 #include <chordcore/Audition.h>
+#include <chordcore/MidiFile.h>
 #include <chordcore/Preview.h>
 #include <chordcore/Progression.h>
 #include <chordcore/Scheduler.h>
@@ -84,9 +85,9 @@ public:
 
     /// Builds the Standard MIDI File for the current progression via chordcore's single export path.
     /// Throws std::exception on failure.
-    /// firstBar/lastBar 0 = the whole project; otherwise bars firstBar..lastBar (1-based, inclusive) as their own
-    /// file (chordcore::exportProgressionRangeToMidi). Throws std::invalid_argument for a bad range.
-    std::vector<std::uint8_t> exportMidiBytes(int firstBar = 0, int lastBar = 0) const;
+    /// options: which part (Chords / Melody / Combined), optional bar range (0/0 = whole project) and the melody
+    /// channel-1 compatibility switch (chordcore::exportProject). Throws std::invalid_argument for a bad range.
+    std::vector<std::uint8_t> exportMidiBytes(const chordcore::ProjectExportOptions& options = {}) const;
 
     // ---- juce::AudioProcessor
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;

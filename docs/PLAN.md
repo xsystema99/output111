@@ -219,3 +219,10 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - Playback: `generateProjectNotes()` = chords (chord channel) + melody (melody channel) minus muted parts; the scheduler is fed from it. Export of the melody and the three-file export are Build B.
 - UI: `MelodyRollComponent` draws with the chord grid's view (origin, zoom, snap, bar/beat lines), precomputes backgrounds when the model changes, paints only rectangles.
 - Decisions: lock protects a note from the generator only (hand edits still work). Chord Density and Chromatic Dice do not exist in this codebase; spec test I is expressed as replacing a chord.
+
+## 4j. Melody export and mutes (Build B)
+
+- `exportProject()` is the one export path for Chords.mid / Melody.mid / Combined.mid (optional bar range, optional melody-on-channel-1). It builds from `generateNotes()` (chord channel) and `generateMelodyNotes()` (melody channel), the same events `generateProjectNotes()` gives playback; a test pairs the Combined file's notes against the playback events.
+- Combined is SMF Format 1: a conductor track (name, time signature, tempo, key) and tracks "Chords" and "Melody" without their own tempo events; all three share one end-of-track.
+- Mutes are playback-only (they remove a part from `generateProjectNotes()`); exports always contain both parts.
+- Editor: export dialog (part, bar range, melody channel), drag-part box, mute toggles (undoable, saved).

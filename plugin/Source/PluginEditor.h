@@ -57,8 +57,9 @@ private:
     void copyClicked();
     void pasteClicked();
     void exportMidiClicked();
-    void writeMidiTo(const juce::File& file, int firstBar, int lastBar);
-    void chooseExportFile(int firstBar, int lastBar);
+    void writeMidiTo(const juce::File& file, const chordcore::ProjectExportOptions& options);
+    void chooseExportFile(const chordcore::ProjectExportOptions& options);
+    void muteChanged();
     juce::File writeDragFile(juce::String& error);
 
     ChordSketchProcessor& chordProcessor;
@@ -85,6 +86,8 @@ private:
     juce::Label melodyCaption{{}, "Melody"}, velocityCaption{{}, "Velocity"}, melodyHint;
     juce::ComboBox mappingBox, paletteBox, labelsBox;
     juce::Slider velocitySlider;
+    ui::StyledButton muteChordsButton{"Mute chords", ui::StyledButton::Look::Pill, 12.0f};
+    ui::StyledButton muteMelodyButton{"Mute melody", ui::StyledButton::Look::Pill, 12.0f};
     ui::StyledButton lockButton{"Lock", ui::StyledButton::Look::Outline, 13.0f};
     MelodyRollComponent roll;
 
@@ -122,6 +125,7 @@ private:
     // footer
     ui::StyledButton previewButton{"Preview", ui::StyledButton::Look::Primary, 15.0f};
     MidiDragHandle dragHandle;
+    juce::ComboBox dragPartBox;
     ui::StyledButton copyButton{"Copy progression", ui::StyledButton::Look::Outline};
     ui::StyledButton pasteButton{"Paste", ui::StyledButton::Look::Outline};
     juce::Label statusLabel;

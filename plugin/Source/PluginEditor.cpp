@@ -121,11 +121,13 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     styleLabel(velocityCaption, 12.0f, false, ui::mutedTextColour());
     styleLabel(melodyHint, 11.0f, false, ui::mutedTextColour(), juce::Justification::centredRight);
     melodyHint.setText("bright = chord tone, faint = scale tone, hatched = outside the key", juce::dontSendNotification);
-    mappingBox.addItem("Colours: Diatonic", 1);
-    mappingBox.addItem("Colours: Major-centric", 2);
-    paletteBox.addItem("Palette: Classic", 1);
-    paletteBox.addItem("Palette: Soft", 2);
-    paletteBox.addItem("Palette: Colour-blind", 3);
+    mappingBox.addItem("Diatonic colours", 1);
+    mappingBox.addItem("Major-centric", 2);
+    paletteBox.addItem("Classic", 1);
+    paletteBox.addItem("Soft", 2);
+    paletteBox.addItem("Colour-blind", 3);
+    mappingBox.setTooltip("Diatonic: colours follow the key's own scale. Major-centric: colours follow the interval above the tonic.");
+    paletteBox.setTooltip("Note colour palette");
     labelsBox.addItem("Labels: None", 1);
     labelsBox.addItem("Labels: Pitch", 2);
     labelsBox.addItem("Labels: Degree", 3);
@@ -144,6 +146,14 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     velocitySlider.setValue(90.0, juce::dontSendNotification);
     velocitySlider.setEnabled(false);
     velocitySlider.onValueChange = [this] { roll.setSelectedVelocity(static_cast<int>(velocitySlider.getValue())); };
+    muteChordsButton.setClickingTogglesState(true);
+    muteMelodyButton.setClickingTogglesState(true);
+    muteChordsButton.onClick = [this] { muteChanged(); };
+    muteMelodyButton.onClick = [this] { muteChanged(); };
+    muteChordsButton.setTooltip("Silence the chords in playback (channel 1). Exports are not affected.");
+    muteMelodyButton.setTooltip("Silence the melody in playback (channel 2). Exports are not affected.");
+    addAndMakeVisible(muteChordsButton);
+    addAndMakeVisible(muteMelodyButton);
     lockButton.setEnabled(false);
     lockButton.onClick = [this] { roll.toggleLockSelected(); };
     roll.onMessage = [this](const juce::String& text) { setStatus(text); };
@@ -275,11 +285,17 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     // footer
     dragHandle.makeFile = [this](juce::String& error) { return writeDragFile(error); };
     dragHandle.onMessage = [this](const juce::String& text) { setStatus(text); };
+    dragPartBox.addItem("Drag: both", 1);
+    dragPartBox.addItem("Drag: chords", 2);
+    dragPartBox.addItem("Drag: melody", 3);
+    dragPartBox.setSelectedId(1, juce::dontSendNotification);
+    dragPartBox.setTooltip("Which MIDI file the drag handle hands to Live (both = Format 1 file with a Chords and a Melody track)");
+    styleCombo(dragPartBox);
     previewButton.onClick = [this] { previewClicked(); };
     copyButton.onClick = [this] { copyClicked(); };
     pasteButton.onClick = [this] { pasteClicked(); };
     styleLabel(statusLabel, 12.0f, false, ui::mutedTextColour());
-    for (auto* c : std::initializer_list<juce::Component*>{&previewButton, &dragHandle, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
+    for (auto* c : std::initializer_list<juce::Component*>{&previewButton, &dragHandle, &dragPartBox, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
 
     setResizeLimits(kBaseWidth, kBaseHeight, 1600, 1200);
     setResizable(true, true);  // the corner handle; extra room goes to the grid
@@ -357,12 +373,16 @@ void ChordSketchEditor::resized() {
 
     // melody piano roll
     auto melodyHeader = area.removeFromTop(26);
-    melodyCaption.setBounds(melodyHeader.removeFromLeft(62));
-    mappingBox.setBounds(melodyHeader.removeFromLeft(158));
-    melodyHeader.removeFromLeft(8);
-    paletteBox.setBounds(melodyHeader.removeFromLeft(150));
-    melodyHeader.removeFromLeft(8);
-    labelsBox.setBounds(melodyHeader.removeFromLeft(120));
+    melodyCaption.setBounds(melodyHeader.removeFromLeft(56));
+    mappingBox.setBounds(melodyHeader.removeFromLeft(128));
+    melodyHeader.removeFromLeft(6);
+    paletteBox.setBounds(melodyHeader.removeFromLeft(108));
+    melodyHeader.removeFromLeft(6);
+    labelsBox.setBounds(melodyHeader.removeFromLeft(112));
+    melodyHeader.removeFromLeft(6);
+    muteMelodyButton.setBounds(melodyHeader.removeFromRight(88));
+    melodyHeader.removeFromRight(6);
+    muteChordsButton.setBounds(melodyHeader.removeFromRight(88));
     area.removeFromTop(4);
     roll.setBounds(area.removeFromTop(172));
     area.removeFromTop(4);
@@ -437,6 +457,8 @@ void ChordSketchEditor::resized() {
     previewButton.setBounds(footer.removeFromLeft(112));
     footer.removeFromLeft(10);
     dragHandle.setBounds(footer.removeFromLeft(150).withSizeKeepingCentre(150, 30));
+    footer.removeFromLeft(8);
+    dragPartBox.setBounds(footer.removeFromLeft(104).withSizeKeepingCentre(104, 30));
     area.removeFromTop(4);
     statusLabel.setBounds(area.removeFromTop(22));
 }
@@ -473,6 +495,8 @@ void ChordSketchEditor::refreshFromModel() {
     mappingBox.setSelectedId(model.melodySettings.mapping == ColourMapping::DiatonicCentric ? 1 : 2, juce::dontSendNotification);
     paletteBox.setSelectedId(static_cast<int>(model.melodySettings.palette) + 1, juce::dontSendNotification);
     labelsBox.setSelectedId(static_cast<int>(model.melodySettings.labels) + 1, juce::dontSendNotification);
+    muteChordsButton.setToggleState(model.melodySettings.muteChords, juce::dontSendNotification);
+    muteMelodyButton.setToggleState(model.melodySettings.muteMelody, juce::dontSendNotification);
     melodySelectionChanged();
     selected = timeline.getPrimary();
 
@@ -559,6 +583,15 @@ void ChordSketchEditor::melodySelectionChanged() {
     lockButton.setEnabled(count > 0);
     if (count > 0) velocitySlider.setValue(roll.primaryVelocity(), juce::dontSendNotification);
     lockButton.setButtonText(count > 0 && roll.primaryLocked() ? "Unlock" : "Lock");
+}
+
+void ChordSketchEditor::muteChanged() {
+    const bool chords = muteChordsButton.getToggleState(), melody = muteMelodyButton.getToggleState();
+    const auto result = chordProcessor.editProgression("Mute", [=](Progression& p) {
+        p.melodySettings.muteChords = chords;
+        p.melodySettings.muteMelody = melody;
+    });
+    if (!result.ok) setStatus("Could not change the mute: " + juce::String(result.error));
 }
 
 void ChordSketchEditor::melodySettingsChanged() {
@@ -703,6 +736,9 @@ void ChordSketchEditor::exportMidiClicked() {
                                          juce::MessageBoxIconType::NoIcon);
     window->addTextEditor("from", juce::String(firstBar), "From bar:");
     window->addTextEditor("to", juce::String(lastBar), "To bar:");
+    window->addComboBox("part", juce::StringArray{"Chords + melody (Combined.mid)", "Chords only (Chords.mid)", "Melody only (Melody.mid)"}, "Export:");
+    window->addComboBox("channel", juce::StringArray{"Melody on its own channel (" + juce::String(model.melodySettings.melodyChannel) + ")", "Melody on channel 1 (compatibility)"},
+                        "Melody channel:");
     window->addButton("Choose file...", 1, juce::KeyPress(juce::KeyPress::returnKey));
     window->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
     juce::Component::SafePointer<ChordSketchEditor> safeThis(this);
@@ -714,13 +750,19 @@ void ChordSketchEditor::exportMidiClicked() {
             safeThis->setStatus("Bar range not valid: use 1 to " + juce::String(std::max(totalBars, 1)) + " (first bar not after the last).");
             return;
         }
-        safeThis->chooseExportFile(from, to);
+        ProjectExportOptions options;
+        const int part = window->getComboBoxComponent("part")->getSelectedItemIndex();
+        options.part = part == 1 ? ExportPart::Chords : part == 2 ? ExportPart::Melody : ExportPart::Combined;
+        options.melodyOnChannel1 = window->getComboBoxComponent("channel")->getSelectedItemIndex() == 1;
+        options.firstBar = from;
+        options.lastBar = to;
+        safeThis->chooseExportFile(options);
     }), true);
 }
 
-void ChordSketchEditor::chooseExportFile(int firstBar, int lastBar) {
+void ChordSketchEditor::chooseExportFile(const ProjectExportOptions& options) {
     const auto defaultFile =
-        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("ChordSketch.mid");
+        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(exportFileName(options.part));
 
     fileChooser = std::make_unique<juce::FileChooser>("Export MIDI file", defaultFile, "*.mid");
     const auto chooserFlags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
@@ -728,18 +770,18 @@ void ChordSketchEditor::chooseExportFile(int firstBar, int lastBar) {
 
     // SafePointer: the host may close the editor while the dialog is open.
     juce::Component::SafePointer<ChordSketchEditor> safeThis(this);
-    fileChooser->launchAsync(chooserFlags, [safeThis, firstBar, lastBar](const juce::FileChooser& chooser) {
+    fileChooser->launchAsync(chooserFlags, [safeThis, options](const juce::FileChooser& chooser) {
         if (safeThis == nullptr) return;
         auto file = chooser.getResult();
         if (file == juce::File()) return;  // cancelled
         if (!file.hasFileExtension("mid")) file = file.withFileExtension("mid");
-        safeThis->writeMidiTo(file, firstBar, lastBar);
+        safeThis->writeMidiTo(file, options);
     });
 }
 
-void ChordSketchEditor::writeMidiTo(const juce::File& file, int firstBar, int lastBar) {
+void ChordSketchEditor::writeMidiTo(const juce::File& file, const ProjectExportOptions& options) {
     try {
-        const auto bytes = chordProcessor.exportMidiBytes(firstBar, lastBar);
+        const auto bytes = chordProcessor.exportMidiBytes(options);
         if (file.replaceWithData(bytes.data(), bytes.size())) {
             setStatus("Wrote " + juce::String((int) bytes.size()) + " bytes to " + file.getFullPathName());
         } else {
@@ -752,10 +794,13 @@ void ChordSketchEditor::writeMidiTo(const juce::File& file, int firstBar, int la
 
 juce::File ChordSketchEditor::writeDragFile(juce::String& error) {
     try {
-        const auto bytes = chordProcessor.exportMidiBytes();  // the same bytes as "Export MIDI..."
+        ProjectExportOptions options;  // the same export path as "Export MIDI...", whole project
+        const int part = dragPartBox.getSelectedItemIndex();
+        options.part = part == 1 ? ExportPart::Chords : part == 2 ? ExportPart::Melody : ExportPart::Combined;
+        const auto bytes = chordProcessor.exportMidiBytes(options);
         const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("ChordSketch");
         if (!dir.createDirectory().wasOk()) { error = "could not create " + dir.getFullPathName(); return {}; }
-        const auto file = dir.getChildFile("ChordSketch.mid");
+        const auto file = dir.getChildFile(exportFileName(options.part));
         if (!file.replaceWithData(bytes.data(), bytes.size())) { error = "could not write " + file.getFullPathName(); return {}; }
         return file;
     } catch (const std::exception& e) {

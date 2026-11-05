@@ -44,4 +44,30 @@ std::vector<std::uint8_t> exportProgressionRangeToMidi(const Progression& progre
                                                        const GenerationOptions& generation = {},
                                                        const MidiExportOptions& options = {});
 
+// ---- chords / melody / combined export ----------------------------------------------------------------------------
+
+enum class ExportPart { Chords, Melody, Combined };
+
+struct ProjectExportOptions {
+    ExportPart part = ExportPart::Combined;
+    bool melodyOnChannel1 = false;  ///< melody written on channel 1 instead of its own channel (for hosts that ignore channels)
+    int firstBar = 0;               ///< 0 / 0 = the whole project, otherwise bars first..last (1-based, inclusive)
+    int lastBar = 0;
+    bool writeKeySignature = true;
+};
+
+/// Default file name for a part: "Chords.mid", "Melody.mid", "Combined.mid".
+const char* exportFileName(ExportPart part);
+
+/// Exports the project from the same events that playback uses (generateNotes() for chords on the chord channel,
+/// generateMelodyNotes() for the melody on the melody channel). Mutes only affect live playback, never the export.
+///   Chords   Format 0, one track "Chords"
+///   Melody   Format 0, one track "Melody" (channel 1 when melodyOnChannel1)
+///   Combined Format 1: a conductor track (name, time signature, tempo, key) plus tracks "Chords" and "Melody",
+///            so tempo and meter are shared; each part also lands on its own MIDI channel.
+/// All parts have the same end-of-track (project length, or the bar range), so loops line up when imported.
+/// Throws std::invalid_argument for an invalid progression or bar range.
+std::vector<std::uint8_t> exportProject(const Progression& progression, const ProjectExportOptions& options = {},
+                                        const GenerationOptions& generation = {});
+
 }  // namespace chordcore

@@ -255,7 +255,7 @@ All of the music logic here is covered by automated tests (test_progressiontext,
 4. **Palette audition.** With the DAW stopped, click a palette chord: you hear it briefly (about 0.8 s) from the track the plugin's MIDI goes to (same routing as Preview). It must not play while the DAW plays or Preview runs, and no note may hang.
 5. **Resizable window.** Drag the window's bottom-right corner: it grows (minimum 640 x 716); the extra height goes to the grid. Check that Live lets you resize it. The size is not remembered between sessions.
 
-## Manual test checklist: melody piano roll, Build A (Ableton Live 12.4.16, Windows) — not yet run
+## Manual test checklist: melody piano roll, Build A (Ableton Live 12.4.16, Windows) — user reports everything works (no per-step detail given)
 
 What this build adds: a colour-coded melody piano roll under the chord grid. Backgrounds show how each pitch relates to the chord that is active at that moment; note colours show the scale-degree identity. Playback sends chords on MIDI channel 1 and the melody on channel 2. **MIDI export is still chords-only in this build** (the Chords/Melody/Combined export comes in Build B). The melody generator comes in Build C.
 
@@ -270,6 +270,18 @@ What this build adds: a colour-coded melody piano roll under the chord grid. Bac
 9. Open a project saved by an older build: it loads with an empty melody and chords unchanged.
 
 Please tell me what does not match, including anything that looks or feels wrong even if it works.
+
+## Manual test checklist: Build B, melody export and mutes (Ableton Live 12.4.16, Windows) — not yet run
+
+What this build adds: **Export MIDI...** now asks what to export (Combined / Chords only / Melody only) and whether the melody goes on its own channel or channel 1; the drag handle has a "Drag: both / chords / melody" choice; "Mute chords" and "Mute melody" silence a part in playback only. Exports ignore mutes.
+
+1. Make a progression and a few melody notes. Press **Export MIDI...**, choose "Chords + melody", save `Combined.mid`. Drag it into two Live MIDI tracks or onto one: Live should show a Chords part (channel 1) and a Melody part (channel 2) with the same tempo, 4/4 and key. (How Live splits a Format 1 file on import is something I cannot check; please tell me what it does.)
+2. Export "Chords only" (`Chords.mid`) and "Melody only" (`Melody.mid`). Each contains only its own notes; both have the same length so they loop together.
+3. Export Melody with "Melody on channel 1 (compatibility)": the notes are on channel 1.
+4. Choose a bar range (e.g. 2 to 3): both parts are cut to those bars and start at bar 1 of the new file.
+5. Drag the handle with each "Drag:" choice onto a Live track: the matching file arrives.
+6. Mute melody, press play: only chords sound. Mute chords instead: only the melody. Both off: both play. Mute state is saved with the project and each press is an undo step. Export still contains both parts while muted.
+7. Route channel 2 to its own instrument in Live if you like (Live's MIDI-From channel setting on a second track). The plugin only sets the channel numbers; whether Live treats them as separate tracks is up to Live's routing.
 
 ## Licensing
 
