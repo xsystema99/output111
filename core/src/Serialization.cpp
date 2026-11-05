@@ -335,6 +335,10 @@ std::string serializeProgression(const Progression& p) {
     out += ",\"tempoBpm\":" + number(p.tempoBpm);
     out += ",\"timeSignature\":{\"numerator\":" + std::to_string(p.timeSignature.numerator) +
            ",\"denominator\":" + std::to_string(p.timeSignature.denominator) + "}";
+    // Optional settings are written only when they differ from the defaults, so a project that does not use them
+    // is byte-identical to a version-1 file written before they existed (and still opens in older builds).
+    if (p.octave != 0) out += ",\"octave\":" + std::to_string(p.octave);
+    if (p.lengthBars != 0) out += ",\"lengthBars\":" + std::to_string(p.lengthBars);
     out += ",\"blocks\":[";
     for (std::size_t i = 0; i < p.blocks.size(); ++i) {
         const auto& b = p.blocks[i];
@@ -346,7 +350,9 @@ std::string serializeProgression(const Progression& p) {
         out += ",\"inversion\":" + std::to_string(b.chord.inversion);
         out += std::string(",\"suspension\":\"") + toString(b.chord.suspension) + "\"";
         out += ",\"startTick\":" + std::to_string(b.startTick);
-        out += ",\"durationTicks\":" + std::to_string(b.durationTicks) + "}";
+        out += ",\"durationTicks\":" + std::to_string(b.durationTicks);
+        if (b.octave != 0) out += ",\"octave\":" + std::to_string(b.octave);
+        out += "}";
     }
     out += "]}";
     return out;
@@ -403,6 +409,11 @@ DeserializeResult deserializeProgression(std::string_view text) {
         return fail(r.error);
     }
 
+    if (!r.narrowInt(root, "$", "octave", p.octave, /*required=*/false) ||
+        !r.narrowInt(root, "$", "lengthBars", p.lengthBars, /*required=*/false)) {
+        return fail(r.error);
+    }
+
     const Json* blocks = r.member(root, "$", "blocks");
     if (blocks == nullptr) return fail(r.error);
     if (blocks->type != Json::Type::Array) return fail("$.blocks: expected an array");
@@ -420,7 +431,8 @@ DeserializeResult deserializeProgression(std::string_view text) {
             !r.enumeration(b, path, "seventh", block.chord.seventh, kSevenths) ||
             !r.narrowInt(b, path, "inversion", block.chord.inversion) ||
             !r.enumeration(b, path, "suspension", block.chord.suspension, kSuspensions, /*required=*/false) ||
-            !r.integer(b, path, "startTick", start) || !r.integer(b, path, "durationTicks", duration)) {
+            !r.integer(b, path, "startTick", start) || !r.integer(b, path, "durationTicks", duration) ||
+            !r.narrowInt(b, path, "octave", block.octave, /*required=*/false)) {
             return fail(r.error);
         }
         block.startTick = start;

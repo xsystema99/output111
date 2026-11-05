@@ -15,10 +15,10 @@
 /// Milestone 6 editor, laid out after the supplied mockup:
 ///
 ///   header           title, VST3 badge
-///   Key / Scale / Meter
+///   Key / Scale / Octave (whole project) / Length (4, 8, 16... bars) / Meter
 ///   Chord timeline   coloured chord cards (TimelineComponent)
 ///   Chord palette    the seven diatonic chords of the current scale; click one to set the selected chord
-///   Selected chord   Triad / 7th / 9th / Sus2 / Sus4, plus Split / Duplicate / Delete
+///   Selected chord   its octave (- / +), Triad / 7th / 9th / Sus2 / Sus4, plus Split / Duplicate / Delete
 ///   tools            Undo, Redo, grid snap, tempo, Export MIDI
 ///   footer           Preview (plays the progression while the DAW is stopped), Copy / Paste progression as text
 ///
@@ -44,6 +44,8 @@ private:
     void paletteClicked(int degree);
     void keyChanged();
     void scaleChanged();
+    void octaveChanged();
+    void lengthChanged();
     void tempoChanged();
     void splitClicked();
     void duplicateClicked();
@@ -62,8 +64,9 @@ private:
     juce::Label titleLabel, subtitleLabel;
 
     // key / scale / meter
-    juce::Label keyCaption{{}, "Key"}, scaleCaption{{}, "Scale"}, meterCaption{{}, "Meter"}, meterValue;
-    juce::ComboBox tonicBox, scaleBox;
+    juce::Label keyCaption{{}, "Key"}, scaleCaption{{}, "Scale"}, octaveCaption{{}, "Octave"}, lengthCaption{{}, "Length"},
+        meterCaption{{}, "Meter"}, meterValue;
+    juce::ComboBox tonicBox, scaleBox, octaveBox, lengthBox;
 
     // timeline
     juce::Label timelineCaption{{}, "Chord timeline"}, timelineHint;
@@ -74,7 +77,9 @@ private:
     std::vector<std::unique_ptr<ui::StyledButton>> paletteButtons;
 
     // selected chord
-    juce::Label selectedCaption{{}, "Selected chord"}, selectedName;
+    juce::Label selectedCaption{{}, "Selected chord"}, selectedName, chordOctaveLabel;
+    ui::StyledButton chordOctaveDown{"-", ui::StyledButton::Look::Outline, 15.0f};
+    ui::StyledButton chordOctaveUp{"+", ui::StyledButton::Look::Outline, 15.0f};
     ui::StyledButton triadButton{"Triad", ui::StyledButton::Look::Pill};
     ui::StyledButton seventhButton{"7th", ui::StyledButton::Look::Pill};
     ui::StyledButton ninthButton{"9th", ui::StyledButton::Look::Pill};

@@ -21,6 +21,7 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Project state: versioned JSON save/restore, undo/redo (snapshot history with coalescing), chord-text entry | Core **unit-tested** (117 tests total with g++ Debug and clang Release, `-Werror`; mutation-checked: 8 injected bugs all caught). Plugin wiring (host save/load, thread hand-over, editor) **syntax-checked only until CI builds it** | **Tested in Live 12.4.16: user reports the milestone 4 checklist completed with no errors** (per-step results not itemised) |
 | Timeline UI after the supplied mockup: coloured chord cards, 7-chord palette, Triad/7th/Sus2/Sus4, scale switch, move/resize/split/duplicate/delete/add with grid snapping, playhead | All editing rules **unit-tested** in core (Timeline, ChordEdit: 145+ tests with mutation checks). Painting and mouse handling **syntax-checked only until CI builds it**; I could not render it here | **Tried in Live 12.4.16: user reports "It works"** (per-step results not itemised); checklist for milestone 6 below |
 | Preview button: plays the progression from bar 1 at the project tempo while the DAW is stopped | Core clock **unit-tested** alone and driving the real scheduler (exact sample positions, no stuck notes, host takes over, edit while previewing; 6 mutants caught). Audio-thread wiring and button **syntax-checked only until CI builds it** | **Not yet tried in Live** (checklist below). Main risk: Live must keep calling the plugin while stopped |
+| Project length (Auto / 4 / 8 / 16 / 32 bars) and chord octaves (whole project and per chord, each -2..+2) | **Unit-tested** in core: clip length in the exported file, exact 12-semitone shifts through the single note engine, saved state (written only when set, so old files and the pinned format are unchanged), range safety checked exhaustively over all keys/chords/inversions; 14 mutants caught. UI wiring **syntax-checked only until CI builds it** | **Not yet tried in Live** (checklist below) |
 | Drag-out of `.mid`, 9th chords | Not implemented (milestones 7 and 5). The "9th" button is shown disabled | |
 
 ## Layout
@@ -185,6 +186,16 @@ Same routing as the milestone 3 checklist (track 1 = ChordSketch, track 2 = an i
 6. Compare with the milestone 3 result: Live-synced playback and Preview should play the same chords.
 
 **If Preview does nothing while Live is stopped**, tell me: Live may stop calling a plugin that has no incoming MIDI while the transport is stopped, in which case Preview needs a different route (for example the track armed or monitoring).
+
+## Manual test checklist: length and octaves (Ableton Live 12.4.16, Windows) — not yet run
+
+1. **Length**: pick 8 bars. The timeline shows eight bar slots with the four cards at the left and numbered "+" slots to the right; 16 bars: narrower cards (below about 50 px a card shows only its numeral). Click a "+" slot to add a chord out there; Duplicate and drag-to-extend also work now.
+2. **Export MIDI** with length 8: drop the file on a Live clip: it is an 8-bar clip with the chords at the start (empty bars at the end). Length "Auto" gives the old behaviour (clip just long enough).
+3. **Octave** (header): +1 and -1 move every chord up/down an octave when played (route MIDI to an instrument as before) and in the exported file; 0 is the original range (roots in C2-B2 in Live's naming).
+4. **Selected chord octave** (the - and + next to the chord name): moves only that chord; the card shows "Triad · +1"; the buttons stop at +2 / -2 with a message.
+5. Both add up (project +1 and chord +1 = two octaves up). **Undo** reverts each of these in one step.
+6. **Save the Live set, reopen it**: length, octaves and per-chord octaves are restored.
+7. Copy / Paste progression only carries chords and lengths, not octaves: pasted chords come back at octave 0 (known limit).
 
 ## Licensing
 

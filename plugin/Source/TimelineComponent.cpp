@@ -102,6 +102,8 @@ void TimelineComponent::paint(juce::Graphics& g) {
         g.setColour(ui::mutedTextColour().withAlpha(0.6f));
         g.setFont(ui::font(28.0f));
         g.drawText("+", slot.toNearestInt(), juce::Justification::centred);
+        g.setFont(ui::font(11.0f));
+        g.drawText(juce::String(i + 1), slot.toNearestInt().withHeight(18).withTrimmedTop(4), juce::Justification::centred);
     }
 
     // Cards
@@ -141,7 +143,9 @@ void TimelineComponent::paint(juce::Graphics& g) {
                              juce::Justification::centred, 1, 0.6f);
             g.setFont(ui::font(12.0f));
             g.setColour(juce::Colours::white.withAlpha(0.85f));
-            g.drawFittedText(typeLabel(block.chord), inner.withTrimmedTop(88).withHeight(16).reduced(4, 0), juce::Justification::centred, 1, 0.6f);
+            auto label = typeLabel(block.chord);
+            if (block.octave != 0) label += juce::String(juce::CharPointer_UTF8(" \xC2\xB7 ")) + (block.octave > 0 ? "+" : "") + juce::String(block.octave);
+            g.drawFittedText(label, inner.withTrimmedTop(88).withHeight(16).reduced(4, 0), juce::Justification::centred, 1, 0.6f);
         }
     }
 

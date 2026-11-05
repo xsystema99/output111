@@ -47,19 +47,31 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     addAndMakeVisible(subtitleLabel);
 
     // key / scale / meter
-    for (auto* caption : {&keyCaption, &scaleCaption, &meterCaption}) {
+    for (auto* caption : {&keyCaption, &scaleCaption, &octaveCaption, &lengthCaption, &meterCaption}) {
         styleLabel(*caption, 14.0f, true, ui::textColour());
         addAndMakeVisible(*caption);
     }
     for (int i = 0; i < 12; ++i) tonicBox.addItem("C", i + 1);  // names are set in refreshFromModel (they depend on the scale)
     scaleBox.addItem("Major", 1);
     scaleBox.addItem("Minor", 2);
+    for (int o = -2; o <= 2; ++o) octaveBox.addItem(o > 0 ? "+" + juce::String(o) : juce::String(o), o + 3);
+    lengthBox.addItem("Auto", 1);
+    lengthBox.addItem("4 bars", 2);
+    lengthBox.addItem("8 bars", 3);
+    lengthBox.addItem("16 bars", 4);
+    lengthBox.addItem("32 bars", 5);
     styleCombo(tonicBox);
     styleCombo(scaleBox);
+    styleCombo(octaveBox);
+    styleCombo(lengthBox);
     tonicBox.onChange = [this] { keyChanged(); };
     scaleBox.onChange = [this] { scaleChanged(); };
+    octaveBox.onChange = [this] { octaveChanged(); };
+    lengthBox.onChange = [this] { lengthChanged(); };
     addAndMakeVisible(tonicBox);
     addAndMakeVisible(scaleBox);
+    addAndMakeVisible(octaveBox);
+    addAndMakeVisible(lengthBox);
     styleLabel(meterValue, 17.0f, true, ui::textColour(), juce::Justification::centredLeft);
     addAndMakeVisible(meterValue);
 
@@ -86,8 +98,24 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     // selected chord
     styleLabel(selectedCaption, 14.0f, true, ui::textColour());
     styleLabel(selectedName, 15.0f, true, ui::mutedTextColour(), juce::Justification::centredRight);
+    styleLabel(chordOctaveLabel, 12.0f, false, ui::mutedTextColour(), juce::Justification::centred);
+    chordOctaveDown.onClick = [this] {
+        applyToSelected("Chord octave down", [](Progression& prog, std::size_t i) {
+            const auto r = shiftBlockOctave(prog, i, -1);
+            if (!r.ok) throw std::runtime_error(r.error);
+        });
+    };
+    chordOctaveUp.onClick = [this] {
+        applyToSelected("Chord octave up", [](Progression& prog, std::size_t i) {
+            const auto r = shiftBlockOctave(prog, i, +1);
+            if (!r.ok) throw std::runtime_error(r.error);
+        });
+    };
     addAndMakeVisible(selectedCaption);
     addAndMakeVisible(selectedName);
+    addAndMakeVisible(chordOctaveLabel);
+    addAndMakeVisible(chordOctaveDown);
+    addAndMakeVisible(chordOctaveUp);
 
     triadButton.onClick = [this] {
         applyToSelected("Triad", [](Progression& prog, std::size_t i) { prog.blocks.at(i).chord = asTriad(prog.blocks.at(i).chord); });
@@ -196,20 +224,21 @@ void ChordSketchEditor::resized() {
     subtitleLabel.setBounds(header);
     area.removeFromTop(14);
 
-    // key / scale / meter
-    const int columnWidth = (area.getWidth() - 2 * 14) / 3;
+    // key / scale / octave / length / meter
+    const int columnGap = 12;
+    const int columnWidths[4] = {128, 128, 96, 116};
     auto captions = area.removeFromTop(22);
     auto controls = area.removeFromTop(36);
-    keyCaption.setBounds(captions.removeFromLeft(columnWidth));
-    captions.removeFromLeft(14);
-    scaleCaption.setBounds(captions.removeFromLeft(columnWidth));
-    captions.removeFromLeft(14);
+    juce::Label* captionLabels[4] = {&keyCaption, &scaleCaption, &octaveCaption, &lengthCaption};
+    juce::ComboBox* boxes[4] = {&tonicBox, &scaleBox, &octaveBox, &lengthBox};
+    for (int i = 0; i < 4; ++i) {
+        captionLabels[i]->setBounds(captions.removeFromLeft(columnWidths[i]));
+        captions.removeFromLeft(columnGap);
+        boxes[i]->setBounds(controls.removeFromLeft(columnWidths[i]));
+        controls.removeFromLeft(columnGap);
+    }
     meterCaption.setBounds(captions);
-    tonicBox.setBounds(controls.removeFromLeft(columnWidth));
-    controls.removeFromLeft(14);
-    scaleBox.setBounds(controls.removeFromLeft(columnWidth));
-    controls.removeFromLeft(14);
-    meterValue.setBounds(controls.withTrimmedLeft(8));
+    meterValue.setBounds(controls.withTrimmedLeft(4));
     area.removeFromTop(16);
 
     // timeline
@@ -234,8 +263,12 @@ void ChordSketchEditor::resized() {
 
     // selected chord
     auto selectedHeader = area.removeFromTop(22);
-    selectedCaption.setBounds(selectedHeader.removeFromLeft(160));
-    selectedName.setBounds(selectedHeader);
+    selectedCaption.setBounds(selectedHeader.removeFromLeft(130));
+    selectedName.setBounds(selectedHeader.removeFromRight(70));
+    selectedHeader.removeFromRight(8);
+    chordOctaveUp.setBounds(selectedHeader.removeFromRight(28));
+    chordOctaveLabel.setBounds(selectedHeader.removeFromRight(76));
+    chordOctaveDown.setBounds(selectedHeader.removeFromRight(28));
     area.removeFromTop(6);
     auto pills = area.removeFromTop(34);
     const std::pair<juce::Component*, int> left[] = {{&triadButton, 64}, {&seventhButton, 56}, {&ninthButton, 56}, {&sus2Button, 64}, {&sus4Button, 64}};
@@ -311,6 +344,16 @@ void ChordSketchEditor::refreshFromModel() {
     scaleBox.setSelectedId(model.key.mode == Mode::Major ? 1 : 2, juce::dontSendNotification);
     meterValue.setText(juce::String(model.timeSignature.numerator) + "/" + juce::String(model.timeSignature.denominator), juce::dontSendNotification);
 
+    octaveBox.setSelectedId(model.octave + 3, juce::dontSendNotification);
+    switch (model.lengthBars) {
+        case 0: lengthBox.setSelectedId(1, juce::dontSendNotification); break;
+        case 4: lengthBox.setSelectedId(2, juce::dontSendNotification); break;
+        case 8: lengthBox.setSelectedId(3, juce::dontSendNotification); break;
+        case 16: lengthBox.setSelectedId(4, juce::dontSendNotification); break;
+        case 32: lengthBox.setSelectedId(5, juce::dontSendNotification); break;
+        default: lengthBox.setText(juce::String(model.lengthBars) + " bars", juce::dontSendNotification); break;  // from a loaded project
+    }
+
     // timeline
     const Tick bar = model.timeSignature.ticksPerBar();
     const auto bars = static_cast<int>(std::max<Tick>(model.lengthTicks() / bar, 4));
@@ -333,6 +376,11 @@ void ChordSketchEditor::refreshFromModel() {
     selectedName.setText(current != nullptr ? juce::String(chordName(model.key, *current)) : juce::String(juce::CharPointer_UTF8("\xE2\x80\x93")),
                          juce::dontSendNotification);
     for (auto* b : {&triadButton, &seventhButton, &splitButton, &duplicateButton, &deleteButton}) b->setEnabled(hasSelection);
+    const int chordOctave = hasSelection ? model.blocks[static_cast<std::size_t>(selected)].octave : 0;
+    chordOctaveLabel.setText(hasSelection ? "Octave " + juce::String(chordOctave > 0 ? "+" : "") + juce::String(chordOctave) : juce::String("Octave"),
+                             juce::dontSendNotification);
+    chordOctaveDown.setEnabled(hasSelection && chordOctave > -kMaxOctaveShift);
+    chordOctaveUp.setEnabled(hasSelection && chordOctave < kMaxOctaveShift);
     sus2Button.setEnabled(current != nullptr && canSuspend(*current));
     sus4Button.setEnabled(current != nullptr && canSuspend(*current));
     triadButton.setToggleState(current != nullptr && current->seventh == Seventh::None && current->suspension == Suspension::None, juce::dontSendNotification);
@@ -380,6 +428,22 @@ void ChordSketchEditor::scaleChanged() {
     if (mode == model.key.mode) return;
     const auto result = chordProcessor.editProgression("Change scale", [mode](Progression& prog) { changeMode(prog, mode); });
     if (!result.ok) setStatus("Cannot change scale: " + juce::String(result.error));
+}
+
+void ChordSketchEditor::octaveChanged() {
+    const int octave = octaveBox.getSelectedId() - 3;
+    if (octave < -kMaxOctaveShift || octave > kMaxOctaveShift || octave == model.octave) return;
+    const auto result = chordProcessor.editProgression("Change octave", [octave](Progression& prog) { prog.octave = octave; });
+    if (!result.ok) setStatus("Cannot change octave: " + juce::String(result.error));
+}
+
+void ChordSketchEditor::lengthChanged() {
+    static const int bars[5] = {0, 4, 8, 16, 32};
+    const int id = lengthBox.getSelectedId();
+    if (id < 1 || id > 5 || bars[id - 1] == model.lengthBars) return;
+    const int requested = bars[id - 1];
+    const auto result = chordProcessor.editProgression("Change length", [requested](Progression& prog) { prog.lengthBars = requested; });
+    if (!result.ok) setStatus("Cannot change length: " + juce::String(result.error));
 }
 
 void ChordSketchEditor::tempoChanged() {

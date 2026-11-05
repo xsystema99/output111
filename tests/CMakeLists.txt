@@ -25,6 +25,7 @@ add_executable(chordcore_tests
     test_timeline.cpp
     test_chordedit.cpp
     test_preview.cpp
+    test_octave_length.cpp
     test_midifile.cpp)
 target_include_directories(chordcore_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(chordcore_tests PRIVATE chordcore Catch2::Catch2WithMain)

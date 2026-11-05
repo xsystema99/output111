@@ -150,6 +150,22 @@ Advanced features (M2+) are intentionally not started until M1's export has been
   stopped. Unknown for Live 12.4.16 until tested.
 - Not done: auditioning a single chord when it is clicked in the palette (would reuse the same clock with a short range).
 
+## 4f. Length and octave options
+
+- **Length** (`Progression::lengthBars`, 0 = Auto): minimum clip/project length in bars. `lengthTicks()` is the longer of
+  the chords rounded up to whole bars and `lengthBars` bars, and that one value drives both the exported clip's
+  end-of-track and the timeline's width, so they cannot disagree. Auto keeps the previous behaviour exactly (all
+  existing tests and golden bytes unchanged). Chords longer than the setting win.
+- **Octaves.** `Progression::octave` shifts the whole project and `ChordBlock::octave` shifts one chord, each -2..+2,
+  applied in `generateNotes` by moving the voicing base by 12 semitones per octave, so playback, Preview and MIDI export
+  stay identical. The +-2 + +-2 limit was chosen because it provably keeps every voicing inside MIDI 0..127
+  (checked exhaustively in a test); a wider range would need clamping.
+- **Saved state.** Both options (and the per-chord octave) are written only when non-zero, so a project that does not use
+  them is byte-identical to a version-1 file from before; the version number is unchanged. An older build opening a
+  file that does use them ignores the fields (loses the setting, still opens). If that ever matters, bump
+  `kStateVersion` instead.
+- **Not carried by the chord text** (Copy/Paste): octaves are not part of the Roman-numeral line.
+
 ## 5. Risks and open decisions
 
 - **Plugin type in Ableton.** Live has no VST3 "MIDI effect" slot for third-party plugins. The

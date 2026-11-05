@@ -63,6 +63,9 @@ OpResult duplicateBlock(Progression& progression, std::size_t index);
 
 OpResult deleteBlock(Progression& progression, std::size_t index);
 
+/// Moves one chord up or down by `delta` octaves (its own shift, -2..+2). Fails at the limits.
+OpResult shiftBlockOctave(Progression& progression, std::size_t index, int delta);
+
 /// Replaces the chord of a block (position and length unchanged). Fails for an invalid chord.
 OpResult setBlockChord(Progression& progression, std::size_t index, const ChordSpec& chord);
 

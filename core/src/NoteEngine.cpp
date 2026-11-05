@@ -14,7 +14,9 @@ std::vector<NoteEvent> generateNotes(const Progression& progression, const Gener
 
     std::vector<NoteEvent> notes;
     for (const auto& block : progression.blocks) {
-        const std::vector<int> pitches = voiceChord(progression.key, block.chord, options.voicing);
+        VoicingOptions voicing = options.voicing;
+        voicing.rootBase += 12 * (progression.octave + block.octave);  // project octave + this chord's octave
+        const std::vector<int> pitches = voiceChord(progression.key, block.chord, voicing);
         const Tick length = std::max<Tick>(1, block.durationTicks - options.releaseGapTicks);
         for (int pitch : pitches) {
             notes.push_back(NoteEvent{pitch, block.startTick, length, options.velocity, options.channel});

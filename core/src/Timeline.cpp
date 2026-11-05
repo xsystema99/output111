@@ -133,7 +133,9 @@ OpResult splitBlock(Progression& p, std::size_t index, Tick atTick, Tick unit) {
     if (at <= block.startTick || at >= block.endTick()) return fail("the split point must be inside the chord");
 
     p.blocks[index].durationTicks = at - block.startTick;
-    ChordBlock second{block.chord, at, block.endTick() - at};
+    ChordBlock second = block;  // keeps the chord's octave
+    second.startTick = at;
+    second.durationTicks = block.endTick() - at;
     p.blocks.insert(p.blocks.begin() + static_cast<std::ptrdiff_t>(index) + 1, second);
     return succeed(index + 1);
 }
@@ -145,14 +147,24 @@ OpResult duplicateBlock(Progression& p, std::size_t index) {
     const Tick room = nextLimit(p, index, block.startTick) - start;
     if (room < block.durationTicks) return fail("no room after the chord");
 
-    p.blocks.insert(p.blocks.begin() + static_cast<std::ptrdiff_t>(index) + 1,
-                    ChordBlock{block.chord, start, block.durationTicks});
+    ChordBlock copy = block;  // keeps the chord's octave
+    copy.startTick = start;
+    p.blocks.insert(p.blocks.begin() + static_cast<std::ptrdiff_t>(index) + 1, copy);
     return succeed(index + 1);
 }
 
 OpResult deleteBlock(Progression& p, std::size_t index) {
     if (index >= p.blocks.size()) return fail("no such block");
     p.blocks.erase(p.blocks.begin() + static_cast<std::ptrdiff_t>(index));
+    return succeed(index);
+}
+
+OpResult shiftBlockOctave(Progression& p, std::size_t index, int delta) {
+    if (index >= p.blocks.size()) return fail("no such block");
+    const int target = p.blocks[index].octave + delta;
+    if (target < -kMaxOctaveShift) return fail("already at the lowest octave");
+    if (target > kMaxOctaveShift) return fail("already at the highest octave");
+    p.blocks[index].octave = target;
     return succeed(index);
 }
 

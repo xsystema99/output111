@@ -13,9 +13,10 @@ Tick Progression::endTick() const {
 
 Tick Progression::lengthTicks() const {
     const Tick end = endTick();
-    if (end == 0) return 0;
     const Tick bar = timeSignature.ticksPerBar();
-    return ((end + bar - 1) / bar) * bar;
+    const Tick content = end == 0 ? 0 : ((end + bar - 1) / bar) * bar;
+    const Tick requested = lengthBars > 0 ? static_cast<Tick>(lengthBars) * bar : 0;
+    return std::max(content, requested);
 }
 
 std::vector<std::string> Progression::validate() const {
@@ -26,6 +27,8 @@ std::vector<std::string> Progression::validate() const {
         errors.push_back("tempo must be between 20 and 999 BPM");
     }
     if (!timeSignature.isValid()) errors.push_back("invalid time signature");
+    if (octave < -kMaxOctaveShift || octave > kMaxOctaveShift) errors.push_back("octave must be between -2 and +2");
+    if (lengthBars < 0 || lengthBars > kMaxLengthBars) errors.push_back("length must be 0 (automatic) to 256 bars");
 
     for (std::size_t i = 0; i < blocks.size(); ++i) {
         const auto& block = blocks[i];
@@ -33,6 +36,7 @@ std::vector<std::string> Progression::validate() const {
         if (!block.chord.isValid()) errors.push_back(where + "invalid chord");
         if (block.startTick < 0) errors.push_back(where + "start must be >= 0");
         if (block.durationTicks < 1) errors.push_back(where + "duration must be >= 1 tick");
+        if (block.octave < -kMaxOctaveShift || block.octave > kMaxOctaveShift) errors.push_back(where + "octave must be between -2 and +2");
     }
 
     // Overlap check on a start-sorted copy of the indices.
