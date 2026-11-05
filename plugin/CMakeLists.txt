@@ -43,6 +43,7 @@ target_sources(ChordSketch PRIVATE
     Source/PluginEditor.h
     Source/GridComponent.cpp
     Source/GridComponent.h
+    Source/MidiDragHandle.h
     Source/UiKit.h)
 
 target_compile_definitions(ChordSketch PUBLIC

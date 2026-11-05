@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "GridComponent.h"
+#include "MidiDragHandle.h"
 #include "UiKit.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -54,6 +55,7 @@ private:
     void pasteClicked();
     void exportMidiClicked();
     void writeMidiTo(const juce::File& file);
+    juce::File writeDragFile(juce::String& error);
 
     ChordSketchProcessor& chordProcessor;
     chordcore::Progression model;  // last value read from the chordProcessor
@@ -100,7 +102,7 @@ private:
 
     // footer
     ui::StyledButton previewButton{"Preview", ui::StyledButton::Look::Primary, 15.0f};
-    juce::Label footerNote;
+    MidiDragHandle dragHandle;
     ui::StyledButton copyButton{"Copy progression", ui::StyledButton::Look::Outline};
     ui::StyledButton pasteButton{"Paste", ui::StyledButton::Look::Outline};
     juce::Label statusLabel;

@@ -196,13 +196,13 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     for (auto* c : std::initializer_list<juce::Component*>{&undoButton, &redoButton, &tempoSlider, &exportButton}) addAndMakeVisible(*c);
 
     // footer
-    footerNote.setText("Syncs to the DAW when it plays", juce::dontSendNotification);
+    dragHandle.makeFile = [this](juce::String& error) { return writeDragFile(error); };
+    dragHandle.onMessage = [this](const juce::String& text) { setStatus(text); };
     previewButton.onClick = [this] { previewClicked(); };
-    styleLabel(footerNote, 12.0f, false, ui::mutedTextColour());
     copyButton.onClick = [this] { copyClicked(); };
     pasteButton.onClick = [this] { pasteClicked(); };
     styleLabel(statusLabel, 12.0f, false, ui::mutedTextColour());
-    for (auto* c : std::initializer_list<juce::Component*>{&previewButton, &footerNote, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
+    for (auto* c : std::initializer_list<juce::Component*>{&previewButton, &dragHandle, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
 
     setSize(640, 676);
     refreshFromModel();
@@ -327,7 +327,7 @@ void ChordSketchEditor::resized() {
     pasteButton.setBounds(footer.removeFromRight(64));
     previewButton.setBounds(footer.removeFromLeft(112));
     footer.removeFromLeft(10);
-    footerNote.setBounds(footer);
+    dragHandle.setBounds(footer.removeFromLeft(150).withSizeKeepingCentre(150, 30));
     area.removeFromTop(4);
     statusLabel.setBounds(area.removeFromTop(22));
 }
@@ -554,5 +554,19 @@ void ChordSketchEditor::writeMidiTo(const juce::File& file) {
         }
     } catch (const std::exception& e) {
         setStatus(juce::String("Export failed: ") + e.what());
+    }
+}
+
+juce::File ChordSketchEditor::writeDragFile(juce::String& error) {
+    try {
+        const auto bytes = chordProcessor.exportMidiBytes();  // the same bytes as "Export MIDI..."
+        const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("ChordSketch");
+        if (!dir.createDirectory().wasOk()) { error = "could not create " + dir.getFullPathName(); return {}; }
+        const auto file = dir.getChildFile("ChordSketch.mid");
+        if (!file.replaceWithData(bytes.data(), bytes.size())) { error = "could not write " + file.getFullPathName(); return {}; }
+        return file;
+    } catch (const std::exception& e) {
+        error = e.what();
+        return {};
     }
 }
