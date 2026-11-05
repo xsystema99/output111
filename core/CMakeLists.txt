@@ -16,7 +16,8 @@ add_library(chordcore STATIC
     src/Audition.cpp
     src/Harmony.cpp
     src/MelodyEdit.cpp
-    src/MelodyGenerator.cpp)
+    src/MelodyGenerator.cpp
+    src/Voicing.cpp)
 
 target_include_directories(chordcore PUBLIC include)
 target_compile_features(chordcore PUBLIC cxx_std_17)

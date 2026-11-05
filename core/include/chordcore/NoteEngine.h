@@ -29,7 +29,15 @@ struct GenerationOptions {
     int channel = 0;
     /// Ticks shaved off the end of every note (articulation gap). 0 = notes last the full chord length.
     Tick releaseGapTicks = 0;
+    /// true = ignore every Chord Density setting and use the original voicing (for "Original Chords" export / A-B checks).
+    bool originalVoicing = false;
 };
+
+/// The voicing of every block (same order as progression.blocks), after Chord Density: the single place that decides
+/// which pitches a chord plays. Voice leading chains through the blocks in time order. Throws std::invalid_argument for
+/// an invalid progression. generateNotes() is built on it, so playback, Preview, audition and export all agree.
+std::vector<VoicedChord> voiceProgression(const Progression& progression, const VoicingOptions& voicing = {},
+                                          bool originalVoicing = false);
 
 /// THE note generator: every chord-to-note conversion in the project goes through this function
 /// (file export now, transport playback later). Pure and deterministic. The result is sorted by

@@ -377,6 +377,11 @@ const std::pair<const char*, LabelMode> kLabelModes[] = {{"none", LabelMode::Non
                                                          {"degree", LabelMode::Degree},
                                                          {"both", LabelMode::Both}};
 
+const std::pair<const char*, RegisterPreset> kRegisters[] = {{"low", RegisterPreset::Low}, {"mid", RegisterPreset::Mid}, {"high", RegisterPreset::High},
+                                                             {"full", RegisterPreset::Full}, {"custom", RegisterPreset::Custom}};
+const std::pair<const char*, Distribution> kDistributions[] = {{"automatic", Distribution::Automatic}, {"close", Distribution::Close},
+                                                               {"open", Distribution::Open}, {"spread", Distribution::Spread}};
+
 const std::pair<const char*, Contour> kContours[] = {{"ascending", Contour::Ascending}, {"descending", Contour::Descending}, {"arch", Contour::Arch},
                                                      {"invertedArch", Contour::InvertedArch}, {"wave", Contour::Wave}, {"free", Contour::Free}};
 const std::pair<const char*, Density> kDensities[] = {{"sparse", Density::Sparse}, {"moderate", Density::Moderate}, {"dense", Density::Dense}};
@@ -393,6 +398,33 @@ const char* nameOf(Enum value, const std::pair<const char*, Enum> (&table)[N]) {
         if (entry.second == value) return entry.first;
     }
     return table[0].first;
+}
+
+// Chord Density settings, only the fields that differ from the defaults.
+std::string voicingJson(const VoicingSettings& v) {
+    const VoicingSettings d;
+    std::string fields;
+    auto add = [&fields](const std::string& f) {
+        if (!fields.empty()) fields += ",";
+        fields += f;
+    };
+    if (v.density != d.density) add("\"density\":" + std::to_string(v.density));
+    if (v.registerPreset != d.registerPreset) add(std::string("\"register\":\"") + nameOf(v.registerPreset, kRegisters) + "\"");
+    if (v.customLow != d.customLow) add("\"customLow\":" + std::to_string(v.customLow));
+    if (v.customHigh != d.customHigh) add("\"customHigh\":" + std::to_string(v.customHigh));
+    if (v.distribution != d.distribution) add(std::string("\"distribution\":\"") + nameOf(v.distribution, kDistributions) + "\"");
+    if (v.preserveBass != d.preserveBass) add(std::string("\"preserveBass\":") + (v.preserveBass ? "true" : "false"));
+    if (v.voiceLeading != d.voiceLeading) add(std::string("\"voiceLeading\":") + (v.voiceLeading ? "true" : "false"));
+    return "{" + fields + "}";
+}
+
+bool readVoicing(Reader& r, const Json& object, const std::string& path, VoicingSettings& v) {
+    if (object.type != Json::Type::Object) return r.fail(path, "expected an object");
+    return r.narrowInt(object, path, "density", v.density, false) &&
+           r.enumeration(object, path, "register", v.registerPreset, kRegisters, false) &&
+           r.narrowInt(object, path, "customLow", v.customLow, false) && r.narrowInt(object, path, "customHigh", v.customHigh, false) &&
+           r.enumeration(object, path, "distribution", v.distribution, kDistributions, false) &&
+           r.boolean(object, path, "preserveBass", v.preserveBass, false) && r.boolean(object, path, "voiceLeading", v.voiceLeading, false);
 }
 
 const std::pair<const char*, Mode> kModes[] = {{"major", Mode::Major}, {"minor", Mode::Minor}};
@@ -427,6 +459,7 @@ std::string serializeProgression(const Progression& p) {
     // is byte-identical to a version-1 file written before they existed (and still opens in older builds).
     if (p.octave != 0) out += ",\"octave\":" + std::to_string(p.octave);
     if (p.lengthBars != 0) out += ",\"lengthBars\":" + std::to_string(p.lengthBars);
+    if (p.voicing != VoicingSettings{}) out += ",\"voicing\":" + voicingJson(p.voicing);
     out += ",\"blocks\":[";
     for (std::size_t i = 0; i < p.blocks.size(); ++i) {
         const auto& b = p.blocks[i];
@@ -443,6 +476,7 @@ std::string serializeProgression(const Progression& p) {
         out += ",\"startTick\":" + std::to_string(b.startTick);
         out += ",\"durationTicks\":" + std::to_string(b.durationTicks);
         if (b.octave != 0) out += ",\"octave\":" + std::to_string(b.octave);
+        if (b.voicing) out += ",\"voicing\":" + voicingJson(*b.voicing);
         out += "}";
     }
     out += "]";
@@ -564,6 +598,10 @@ DeserializeResult deserializeProgression(std::string_view text) {
         return fail(r.error);
     }
 
+    if (const Json* v = r.member(root, "$", "voicing", /*required=*/false)) {
+        if (!readVoicing(r, *v, "$.voicing", p.voicing)) return fail(r.error);
+    }
+
     const Json* blocks = r.member(root, "$", "blocks");
     if (blocks == nullptr) return fail(r.error);
     if (blocks->type != Json::Type::Array) return fail("$.blocks: expected an array");
@@ -590,6 +628,11 @@ DeserializeResult deserializeProgression(std::string_view text) {
         }
         block.startTick = start;
         block.durationTicks = duration;
+        if (const Json* v = r.member(b, path, "voicing", /*required=*/false)) {
+            VoicingSettings settings;
+            if (!readVoicing(r, *v, path + ".voicing", settings)) return fail(r.error);
+            block.voicing = settings;
+        }
         p.blocks.push_back(block);
     }
 

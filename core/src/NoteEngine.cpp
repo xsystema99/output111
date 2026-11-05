@@ -5,6 +5,29 @@
 
 namespace chordcore {
 
+std::vector<VoicedChord> voiceProgression(const Progression& progression, const VoicingOptions& voicing, bool originalVoicing) {
+    const auto errors = progression.validate();
+    if (!errors.empty()) throw std::invalid_argument("invalid progression: " + errors.front());
+    std::vector<std::size_t> order(progression.blocks.size());
+    for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+    std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+        return progression.blocks[a].startTick < progression.blocks[b].startTick;
+    });
+    std::vector<VoicedChord> result(progression.blocks.size());
+    std::vector<int> previous;
+    for (std::size_t i : order) {
+        const auto& block = progression.blocks[i];
+        VoicingOptions v = voicing;
+        const int shift = progression.octave + block.octave;  // project octave + this chord's octave
+        v.rootBase += 12 * shift;
+        VoicingSettings settings = progression.voicingFor(i);
+        if (originalVoicing) settings.density = 0;
+        result[i] = voiceChordWithSettings(progression.key, block.chord, v, settings, shift, previous.empty() ? nullptr : &previous);
+        previous = result[i].pitches();
+    }
+    return result;
+}
+
 std::vector<NoteEvent> generateNotes(const Progression& progression, const GenerationOptions& options) {
     const auto errors = progression.validate();
     if (!errors.empty()) throw std::invalid_argument("invalid progression: " + errors.front());
@@ -13,13 +36,12 @@ std::vector<NoteEvent> generateNotes(const Progression& progression, const Gener
     if (options.releaseGapTicks < 0) throw std::invalid_argument("releaseGapTicks must be >= 0");
 
     std::vector<NoteEvent> notes;
-    for (const auto& block : progression.blocks) {
-        VoicingOptions voicing = options.voicing;
-        voicing.rootBase += 12 * (progression.octave + block.octave);  // project octave + this chord's octave
-        const std::vector<int> pitches = voiceChord(progression.key, block.chord, voicing);
+    const std::vector<VoicedChord> voiced = voiceProgression(progression, options.voicing, options.originalVoicing);
+    for (std::size_t i = 0; i < progression.blocks.size(); ++i) {
+        const auto& block = progression.blocks[i];
         const Tick length = std::max<Tick>(1, block.durationTicks - options.releaseGapTicks);
-        for (int pitch : pitches) {
-            notes.push_back(NoteEvent{pitch, block.startTick, length, options.velocity, options.channel});
+        for (const auto& n : voiced[i].notes) {
+            notes.push_back(NoteEvent{n.pitch, block.startTick, length, options.velocity, options.channel});
         }
     }
 

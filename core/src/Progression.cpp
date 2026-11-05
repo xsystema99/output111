@@ -48,13 +48,21 @@ std::vector<std::string> Progression::validate() const {
         // Every voiced note must fit MIDI 0..127 (a 13th chord at the highest octave settings can pass 127).
         if (key.isValid() && block.chord.isValid() && block.octave >= -kMaxOctaveShift && block.octave <= kMaxOctaveShift &&
             octave >= -kMaxOctaveShift && octave <= kMaxOctaveShift) {
-            VoicingOptions voicing;
-            voicing.rootBase += 12 * (octave + block.octave);  // as in generateNotes
+            VoicingOptions voicingOptions;
+            voicingOptions.rootBase += 12 * (octave + block.octave);  // as in generateNotes
             try {
-                (void)voiceChord(key, block.chord, voicing);
+                (void)voiceChord(key, block.chord, voicingOptions);
             } catch (const std::out_of_range&) {
                 errors.push_back(where + "this chord would go outside the MIDI note range at this octave; lower the octave or simplify the chord");
             }
+        }
+    }
+
+    if (const std::string problem = validateVoicingSettings(voicing); !problem.empty()) errors.push_back("chord density: " + problem);
+    for (std::size_t i = 0; i < blocks.size(); ++i) {
+        if (!blocks[i].voicing) continue;
+        if (const std::string problem = validateVoicingSettings(*blocks[i].voicing); !problem.empty()) {
+            errors.push_back("block " + std::to_string(i) + ": chord density: " + problem);
         }
     }
 

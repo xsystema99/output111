@@ -1,11 +1,13 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <chordcore/Melody.h>
 #include <chordcore/Theory.h>
 #include <chordcore/Types.h>
+#include <chordcore/Voicing.h>
 
 namespace chordcore {
 
@@ -22,12 +24,15 @@ struct ChordBlock {
     Tick startTick = 0;
     Tick durationTicks = 0;
     int octave = 0;  ///< this chord's own octave shift, added to Progression::octave (-2..+2)
+    /// Individual Chord Density settings; empty = follow Progression::voicing (the global settings).
+    std::optional<VoicingSettings> voicing = std::nullopt;
 
     Tick endTick() const noexcept { return startTick + durationTicks; }
 };
 
 inline bool operator==(const ChordBlock& a, const ChordBlock& b) noexcept {
-    return a.chord == b.chord && a.startTick == b.startTick && a.durationTicks == b.durationTicks && a.octave == b.octave;
+    return a.chord == b.chord && a.startTick == b.startTick && a.durationTicks == b.durationTicks && a.octave == b.octave &&
+           a.voicing == b.voicing;
 }
 inline bool operator!=(const ChordBlock& a, const ChordBlock& b) noexcept { return !(a == b); }
 
@@ -40,9 +45,13 @@ struct Progression {
     int octave = 0;      ///< shifts every chord by this many octaves (-2..+2); 0 = the default voicing range
     int lengthBars = 0;  ///< minimum project/clip length in bars; 0 = automatic (just long enough for the chords)
     std::vector<ChordBlock> blocks;
+    VoicingSettings voicing;  ///< global Chord Density settings (default: Auto / Original)
     std::vector<MelodyNote> melody;  ///< the melody lane, kept sorted by (startTick, pitch)
     MelodySettings melodySettings;
     std::vector<MelodyBasisEntry> melodyBasis;  ///< chords the melody was last generated against (see Melody.h)
+
+    /// The Chord Density settings that apply to block `index`: its own override, else the global settings.
+    const VoicingSettings& voicingFor(std::size_t index) const { return blocks[index].voicing ? *blocks[index].voicing : voicing; }
 
     /// End of the last chord (0 if there are no blocks).
     Tick endTick() const;
@@ -60,7 +69,7 @@ struct Progression {
 
 inline bool operator==(const Progression& a, const Progression& b) {
     return a.key == b.key && a.tempoBpm == b.tempoBpm && a.timeSignature == b.timeSignature && a.octave == b.octave &&
-           a.lengthBars == b.lengthBars && a.blocks == b.blocks && a.melody == b.melody &&
+           a.lengthBars == b.lengthBars && a.blocks == b.blocks && a.voicing == b.voicing && a.melody == b.melody &&
            a.melodySettings == b.melodySettings && a.melodyBasis == b.melodyBasis;
 }
 inline bool operator!=(const Progression& a, const Progression& b) { return !(a == b); }
