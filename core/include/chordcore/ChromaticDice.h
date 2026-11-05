@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include <chordcore/DiceSettings.h>
 #include <chordcore/Progression.h>
 #include <chordcore/Theory.h>
 
@@ -17,34 +18,6 @@ namespace chordcore {
 /// density settings. Its own extensions and alterations replace the old ones. The inversion is kept when the new chord
 /// supports it, otherwise reduced to the highest inversion it supports (DiceResult::normalizationNote says so).
 /// There is no slash-bass field in the chord model yet, so slash bass cannot be incompatible.
-
-enum class DiceMode { PreserveRoot, ReplaceHarmony };
-enum class DiceComplexity { Conservative, Adventurous, Unrestricted };
-
-/// The nine parallel modes the dice borrow from.
-enum class ParallelMode { Ionian, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian, HarmonicMinor, MelodicMinor };
-constexpr int kParallelModeCount = 9;
-
-/// Source Mode filter: Any, or one of the parallel modes (value = ParallelMode + 1).
-enum class ModeFilter { Any, Ionian, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian, HarmonicMinor, MelodicMinor };
-
-struct DiceSettings {
-    DiceMode mode = DiceMode::PreserveRoot;
-    DiceComplexity complexity = DiceComplexity::Conservative;
-    ModeFilter sourceFilter = ModeFilter::Any;
-    bool avoidRepeats = true;   ///< never roll the chord sound of the neighbouring chords (or a recent roll)
-    bool rootLock = false;      ///< keep the root pitch class whatever the mode says (acts as Preserve Root)
-    std::uint32_t seed = 1;     ///< deterministic seed
-    std::uint32_t rollIndex = 0;  ///< advanced by every roll / reroll, so Reroll gives a new but repeatable result
-
-    bool keepsRoot() const noexcept { return rootLock || mode == DiceMode::PreserveRoot; }
-};
-
-inline bool operator==(const DiceSettings& a, const DiceSettings& b) noexcept {
-    return a.mode == b.mode && a.complexity == b.complexity && a.sourceFilter == b.sourceFilter &&
-           a.avoidRepeats == b.avoidRepeats && a.rootLock == b.rootLock && a.seed == b.seed && a.rollIndex == b.rollIndex;
-}
-inline bool operator!=(const DiceSettings& a, const DiceSettings& b) noexcept { return !(a == b); }
 
 struct DiceCandidate {
     ChordSpec chord;

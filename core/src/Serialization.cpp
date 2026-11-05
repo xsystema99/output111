@@ -382,6 +382,16 @@ const std::pair<const char*, RegisterPreset> kRegisters[] = {{"low", RegisterPre
 const std::pair<const char*, Distribution> kDistributions[] = {{"automatic", Distribution::Automatic}, {"close", Distribution::Close},
                                                                {"open", Distribution::Open}, {"spread", Distribution::Spread}};
 
+const std::pair<const char*, DiceMode> kDiceModes[] = {{"preserveRoot", DiceMode::PreserveRoot}, {"replaceHarmony", DiceMode::ReplaceHarmony}};
+const std::pair<const char*, DiceComplexity> kDiceComplexities[] = {{"conservative", DiceComplexity::Conservative},
+                                                                    {"adventurous", DiceComplexity::Adventurous},
+                                                                    {"unrestricted", DiceComplexity::Unrestricted}};
+const std::pair<const char*, ModeFilter> kModeFilters[] = {
+    {"any", ModeFilter::Any},           {"ionian", ModeFilter::Ionian},         {"dorian", ModeFilter::Dorian},
+    {"phrygian", ModeFilter::Phrygian}, {"lydian", ModeFilter::Lydian},         {"mixolydian", ModeFilter::Mixolydian},
+    {"aeolian", ModeFilter::Aeolian},   {"locrian", ModeFilter::Locrian},       {"harmonicMinor", ModeFilter::HarmonicMinor},
+    {"melodicMinor", ModeFilter::MelodicMinor}};
+
 const std::pair<const char*, Contour> kContours[] = {{"ascending", Contour::Ascending}, {"descending", Contour::Descending}, {"arch", Contour::Arch},
                                                      {"invertedArch", Contour::InvertedArch}, {"wave", Contour::Wave}, {"free", Contour::Free}};
 const std::pair<const char*, Density> kDensities[] = {{"sparse", Density::Sparse}, {"moderate", Density::Moderate}, {"dense", Density::Dense}};
@@ -416,6 +426,39 @@ std::string voicingJson(const VoicingSettings& v) {
     if (v.preserveBass != d.preserveBass) add(std::string("\"preserveBass\":") + (v.preserveBass ? "true" : "false"));
     if (v.voiceLeading != d.voiceLeading) add(std::string("\"voiceLeading\":") + (v.voiceLeading ? "true" : "false"));
     return "{" + fields + "}";
+}
+
+std::string diceJson(const DiceSettings& v) {
+    const DiceSettings d;
+    std::string fields;
+    auto add = [&fields](const std::string& f) {
+        if (!fields.empty()) fields += ",";
+        fields += f;
+    };
+    if (v.mode != d.mode) add(std::string("\"mode\":\"") + nameOf(v.mode, kDiceModes) + "\"");
+    if (v.complexity != d.complexity) add(std::string("\"complexity\":\"") + nameOf(v.complexity, kDiceComplexities) + "\"");
+    if (v.sourceFilter != d.sourceFilter) add(std::string("\"sourceMode\":\"") + nameOf(v.sourceFilter, kModeFilters) + "\"");
+    if (v.avoidRepeats != d.avoidRepeats) add(std::string("\"avoidRepeats\":") + (v.avoidRepeats ? "true" : "false"));
+    if (v.rootLock != d.rootLock) add(std::string("\"rootLock\":") + (v.rootLock ? "true" : "false"));
+    if (v.seed != d.seed) add("\"seed\":" + std::to_string(v.seed));
+    if (v.rollIndex != d.rollIndex) add("\"rollIndex\":" + std::to_string(v.rollIndex));
+    return "{" + fields + "}";
+}
+
+bool readDice(Reader& r, const Json& object, const std::string& path, DiceSettings& v) {
+    if (object.type != Json::Type::Object) return r.fail(path, "expected an object");
+    long long seed = v.seed, roll = v.rollIndex;
+    if (!r.enumeration(object, path, "mode", v.mode, kDiceModes, false) || !r.enumeration(object, path, "complexity", v.complexity, kDiceComplexities, false) ||
+        !r.enumeration(object, path, "sourceMode", v.sourceFilter, kModeFilters, false) || !r.boolean(object, path, "avoidRepeats", v.avoidRepeats, false) ||
+        !r.boolean(object, path, "rootLock", v.rootLock, false) || !r.integer(object, path, "seed", seed, false) ||
+        !r.integer(object, path, "rollIndex", roll, false)) {
+        return false;
+    }
+    if (seed < 0 || seed > 4294967295LL) return r.fail(path + ".seed", "out of range");
+    if (roll < 0 || roll > 4294967295LL) return r.fail(path + ".rollIndex", "out of range");
+    v.seed = static_cast<std::uint32_t>(seed);
+    v.rollIndex = static_cast<std::uint32_t>(roll);
+    return true;
 }
 
 bool readVoicing(Reader& r, const Json& object, const std::string& path, VoicingSettings& v) {
@@ -459,6 +502,7 @@ std::string serializeProgression(const Progression& p) {
     // is byte-identical to a version-1 file written before they existed (and still opens in older builds).
     if (p.octave != 0) out += ",\"octave\":" + std::to_string(p.octave);
     if (p.lengthBars != 0) out += ",\"lengthBars\":" + std::to_string(p.lengthBars);
+    if (p.dice != DiceSettings{}) out += ",\"dice\":" + diceJson(p.dice);
     if (p.voicing != VoicingSettings{}) out += ",\"voicing\":" + voicingJson(p.voicing);
     out += ",\"blocks\":[";
     for (std::size_t i = 0; i < p.blocks.size(); ++i) {
@@ -598,6 +642,9 @@ DeserializeResult deserializeProgression(std::string_view text) {
         return fail(r.error);
     }
 
+    if (const Json* v = r.member(root, "$", "dice", /*required=*/false)) {
+        if (!readDice(r, *v, "$.dice", p.dice)) return fail(r.error);
+    }
     if (const Json* v = r.member(root, "$", "voicing", /*required=*/false)) {
         if (!readVoicing(r, *v, "$.voicing", p.voicing)) return fail(r.error);
     }

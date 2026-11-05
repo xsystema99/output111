@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include <chordcore/DiceSettings.h>
 #include <chordcore/Melody.h>
 #include <chordcore/Theory.h>
 #include <chordcore/Types.h>
@@ -45,6 +46,7 @@ struct Progression {
     int octave = 0;      ///< shifts every chord by this many octaves (-2..+2); 0 = the default voicing range
     int lengthBars = 0;  ///< minimum project/clip length in bars; 0 = automatic (just long enough for the chords)
     std::vector<ChordBlock> blocks;
+    DiceSettings dice;        ///< Chromatic Dice settings (seed, mode, complexity ...)
     VoicingSettings voicing;  ///< global Chord Density settings (default: Auto / Original)
     std::vector<MelodyNote> melody;  ///< the melody lane, kept sorted by (startTick, pitch)
     MelodySettings melodySettings;
@@ -69,7 +71,7 @@ struct Progression {
 
 inline bool operator==(const Progression& a, const Progression& b) {
     return a.key == b.key && a.tempoBpm == b.tempoBpm && a.timeSignature == b.timeSignature && a.octave == b.octave &&
-           a.lengthBars == b.lengthBars && a.blocks == b.blocks && a.voicing == b.voicing && a.melody == b.melody &&
+           a.lengthBars == b.lengthBars && a.blocks == b.blocks && a.voicing == b.voicing && a.dice == b.dice && a.melody == b.melody &&
            a.melodySettings == b.melodySettings && a.melodyBasis == b.melodyBasis;
 }
 inline bool operator!=(const Progression& a, const Progression& b) { return !(a == b); }
