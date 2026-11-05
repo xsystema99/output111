@@ -20,7 +20,8 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the architecture, milestones and risks.
 | Live MIDI output from `processBlock`, synced to the host transport | Core scheduler **unit-tested** (81 tests incl. start, stop, locate, loop, tempo, exact sample positions, agreement with the exported file); plugin wiring **syntax-checked only** | **Works in Live 12.4.16** (user-reported: MIDI routed to another track plays correctly). Checklist below |
 | Project state: versioned JSON save/restore, undo/redo (snapshot history with coalescing), chord-text entry | Core **unit-tested** (117 tests total with g++ Debug and clang Release, `-Werror`; mutation-checked: 8 injected bugs all caught). Plugin wiring (host save/load, thread hand-over, editor) **syntax-checked only until CI builds it** | **Tested in Live 12.4.16: user reports the milestone 4 checklist completed with no errors** (per-step results not itemised) |
 | Timeline UI after the supplied mockup: coloured chord cards, 7-chord palette, Triad/7th/Sus2/Sus4, scale switch, move/resize/split/duplicate/delete/add with grid snapping, playhead | All editing rules **unit-tested** in core (Timeline, ChordEdit: 145+ tests with mutation checks). Painting and mouse handling **syntax-checked only until CI builds it**; I could not render it here | **Tried in Live 12.4.16: user reports "It works"** (per-step results not itemised); checklist for milestone 6 below |
-| Drag-out of `.mid`, Preview audition, 9th chords | Not implemented (milestone 7; Preview is a follow-up; 9ths are milestone 5). The "9th" button is shown disabled | |
+| Preview button: plays the progression from bar 1 at the project tempo while the DAW is stopped | Core clock **unit-tested** alone and driving the real scheduler (exact sample positions, no stuck notes, host takes over, edit while previewing; 6 mutants caught). Audio-thread wiring and button **syntax-checked only until CI builds it** | **Not yet tried in Live** (checklist below). Main risk: Live must keep calling the plugin while stopped |
+| Drag-out of `.mid`, 9th chords | Not implemented (milestones 7 and 5). The "9th" button is shown disabled | |
 
 ## Layout
 
@@ -170,7 +171,20 @@ Install the new CI build as before. The window is 640 x 620 and not resizable.
 10. **Copy progression**, then **Paste** after editing: the progression returns. Save the set, reopen: the edited project is restored.
 11. **Export MIDI...** still writes a file that matches what plays.
 
-Known limits: the timeline always fits the whole progression in its width (no scrolling or zoom); the last card can be lengthened by dragging past the right edge or with Duplicate; Preview (audition) is not built; the meter (4/4) is shown but not editable.
+Known limits: the timeline always fits the whole progression in its width (no scrolling or zoom); the last card can be lengthened by dragging past the right edge or with Duplicate; the meter (4/4) is shown but not editable.
+
+## Manual test checklist: Preview (Ableton Live 12.4.16, Windows) — not yet run
+
+Same routing as the milestone 3 checklist (track 1 = ChordSketch, track 2 = an instrument with MIDI From = ChordSketch, monitor In). **Live's transport must be stopped.**
+
+1. Click **▶ Preview**. Expect the chords to sound from bar 1 at the project tempo (the tempo slider, not Live's), the white line to move across the cards, and the button to read **■ Stop**.
+2. It should stop by itself after the last chord, and the button return to Preview. No stuck note.
+3. Click Stop in the middle of a chord: sound stops at once.
+4. During a preview, edit (palette click, drag a card, drag the tempo slider): it keeps going with the change, no stuck note.
+5. Press play in Live while previewing: the preview hands over to Live's transport (no doubled notes). While Live is playing, Preview shows a message instead of starting.
+6. Compare with the milestone 3 result: Live-synced playback and Preview should play the same chords.
+
+**If Preview does nothing while Live is stopped**, tell me: Live may stop calling a plugin that has no incoming MIDI while the transport is stopped, in which case Preview needs a different route (for example the track armed or monitoring).
 
 ## Licensing
 

@@ -147,16 +147,18 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     for (auto* c : std::initializer_list<juce::Component*>{&undoButton, &redoButton, &snapBox, &tempoSlider, &exportButton}) addAndMakeVisible(*c);
 
     // footer
-    footerNote.setText("Plays in sync with the DAW transport (MIDI out)", juce::dontSendNotification);
+    footerNote.setText("Syncs to the DAW when it plays", juce::dontSendNotification);
+    previewButton.onClick = [this] { previewClicked(); };
     styleLabel(footerNote, 12.0f, false, ui::mutedTextColour());
     copyButton.onClick = [this] { copyClicked(); };
     pasteButton.onClick = [this] { pasteClicked(); };
     styleLabel(statusLabel, 12.0f, false, ui::mutedTextColour());
-    for (auto* c : std::initializer_list<juce::Component*>{&footerNote, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
+    for (auto* c : std::initializer_list<juce::Component*>{&previewButton, &footerNote, &copyButton, &pasteButton, &statusLabel}) addAndMakeVisible(*c);
 
     setSize(640, 620);
     refreshFromModel();
     chordProcessor.changes().addChangeListener(this);
+    startTimerHz(15);
 }
 
 ChordSketchEditor::~ChordSketchEditor() { chordProcessor.changes().removeChangeListener(this); }
@@ -266,6 +268,8 @@ void ChordSketchEditor::resized() {
     copyButton.setBounds(footer.removeFromRight(150));
     footer.removeFromRight(8);
     pasteButton.setBounds(footer.removeFromRight(64));
+    previewButton.setBounds(footer.removeFromLeft(112));
+    footer.removeFromLeft(10);
     footerNote.setBounds(footer);
     area.removeFromTop(4);
     statusLabel.setBounds(area.removeFromTop(22));
@@ -274,6 +278,26 @@ void ChordSketchEditor::resized() {
 void ChordSketchEditor::setStatus(const juce::String& text) { statusLabel.setText(text, juce::dontSendNotification); }
 
 void ChordSketchEditor::changeListenerCallback(juce::ChangeBroadcaster*) { refreshFromModel(); }
+
+void ChordSketchEditor::timerCallback() {
+    const bool running = chordProcessor.isPreviewRunning() || chordProcessor.isPreviewRequested();
+    const auto text = running ? juce::String(juce::CharPointer_UTF8("\xE2\x96\xA0  Stop")) : juce::String(juce::CharPointer_UTF8("\xE2\x96\xB6  Preview"));
+    if (previewButton.getButtonText() != text) previewButton.setButtonText(text);
+    previewButton.setEnabled(running || !model.blocks.empty());
+}
+
+void ChordSketchEditor::previewClicked() {
+    if (chordProcessor.isPreviewRunning() || chordProcessor.isPreviewRequested()) {
+        chordProcessor.setPreviewRequested(false);
+        return;
+    }
+    if (chordProcessor.getPlayhead().playing) {
+        setStatus("The DAW is playing: Preview is off while it plays (the plugin already follows the transport).");
+        return;
+    }
+    chordProcessor.setPreviewRequested(true);
+    setStatus("Previewing from bar 1 at " + juce::String(model.tempoBpm, 1) + " BPM. Needs the track's MIDI routed as before.");
+}
 
 void ChordSketchEditor::refreshFromModel() {
     model = chordProcessor.getProgression();

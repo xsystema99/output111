@@ -18,6 +18,7 @@ ChordSketchProcessor::ChordSketchProcessor()
 void ChordSketchProcessor::rebuildPlaybackLocked() {
     const auto& current = document.progression();
     fallbackTempo.store(current.tempoBpm);
+    previewEndPpq.store(static_cast<double>(current.endTick()) / static_cast<double>(chordcore::kTicksPerQuarter));
 
     std::vector<chordcore::NoteEvent> notes;
     try {
@@ -106,11 +107,17 @@ void ChordSketchProcessor::prepareToPlay(double sampleRate, int) {
     currentSampleRate = sampleRate;
     const juce::SpinLock::ScopedLockType lock(schedulerLock);
     scheduler.reset();
+    preview.reset();
+    previewRequested.store(false);
+    previewRunning.store(false);
 }
 
 void ChordSketchProcessor::releaseResources() {
     const juce::SpinLock::ScopedLockType lock(schedulerLock);
     scheduler.reset();
+    preview.reset();
+    previewRequested.store(false);
+    previewRunning.store(false);
 }
 
 bool ChordSketchProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
@@ -143,15 +150,26 @@ void ChordSketchProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
         }
     }
 
-    playheadPpq.store(block.ppqStart, std::memory_order_relaxed);
-    playheadPlaying.store(block.playing, std::memory_order_relaxed);
-    playheadValid.store(havePosition, std::memory_order_relaxed);
-
     // Never block the audio thread: if an edit is swapping the note list, skip this block.
     const juce::SpinLock::ScopedTryLockType lock(schedulerLock);
     if (!lock.isLocked()) return;
 
-    for (const auto& e : scheduler.process(block)) {
+    // Preview supplies its own transport while the host is stopped; otherwise the host's block is used.
+    const bool wanted = previewRequested.load();
+    const auto step = preview.step(wanted, block.playing, fallbackTempo.load(), currentSampleRate, block.numSamples,
+                                   previewEndPpq.load());
+    if (wanted && !step.requestStillWanted) {
+        bool expected = true;
+        previewRequested.compare_exchange_strong(expected, false);  // finished, or the host took over
+    }
+    previewRunning.store(preview.running());
+    const chordcore::TransportBlock& used = step.overrides ? step.block : block;
+
+    playheadPpq.store(used.ppqStart, std::memory_order_relaxed);
+    playheadPlaying.store(used.playing, std::memory_order_relaxed);
+    playheadValid.store(havePosition || step.overrides, std::memory_order_relaxed);
+
+    for (const auto& e : scheduler.process(used)) {
         midi.addEvent(e.noteOn ? juce::MidiMessage::noteOn(e.channel + 1, e.pitch, (juce::uint8) e.velocity)
                                : juce::MidiMessage::noteOff(e.channel + 1, e.pitch, (juce::uint8) 0),
                       e.sampleOffset);

@@ -7,6 +7,7 @@
 #include <string>
 
 #include <chordcore/Document.h>
+#include <chordcore/Preview.h>
 #include <chordcore/Progression.h>
 #include <chordcore/Scheduler.h>
 
@@ -44,6 +45,13 @@ public:
     ~ChordSketchProcessor() override = default;
 
     Playhead getPlayhead() const noexcept;
+
+    /// "Preview": plays the progression from bar 1 at the project tempo while the host transport is stopped
+    /// (it needs the host to keep calling processBlock). Cancelled automatically when the host starts playing
+    /// and when the progression ends. Any thread.
+    void setPreviewRequested(bool requested) noexcept { previewRequested.store(requested); }
+    bool isPreviewRequested() const noexcept { return previewRequested.load(); }
+    bool isPreviewRunning() const noexcept { return previewRunning.load(); }
 
     // ---- project access (any non-audio thread)
     /// A copy of the current progression.
@@ -106,6 +114,11 @@ private:
 
     std::atomic<double> fallbackTempo{120.0};  // read by the audio thread, written under documentLock
     double currentSampleRate = 44100.0;        // written in prepareToPlay, read by the audio thread
+
+    chordcore::PreviewTransport preview;  // guarded by schedulerLock (audio thread)
+    std::atomic<bool> previewRequested{false};
+    std::atomic<bool> previewRunning{false};
+    std::atomic<double> previewEndPpq{0.0};  // end of the last chord in quarter notes, written under documentLock
 
     std::atomic<bool> playheadValid{false};
     std::atomic<bool> playheadPlaying{false};

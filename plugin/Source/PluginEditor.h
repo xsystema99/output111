@@ -20,11 +20,11 @@
 ///   Chord palette    the seven diatonic chords of the current scale; click one to set the selected chord
 ///   Selected chord   Triad / 7th / 9th / Sus2 / Sus4, plus Split / Duplicate / Delete
 ///   tools            Undo, Redo, grid snap, tempo, Export MIDI
-///   footer           Copy / Paste progression as text ("I V vi IV")
+///   footer           Preview (plays the progression while the DAW is stopped), Copy / Paste progression as text
 ///
 /// Everything it does to the project goes through ChordSketchProcessor::editProgression (undoable), using
 /// the rules in chordcore (ChordEdit.h, Timeline.h). No music logic lives here.
-class ChordSketchEditor final : public juce::AudioProcessorEditor, private juce::ChangeListener {
+class ChordSketchEditor final : public juce::AudioProcessorEditor, private juce::ChangeListener, private juce::Timer {
 public:
     explicit ChordSketchEditor(ChordSketchProcessor&);
     ~ChordSketchEditor() override;
@@ -34,6 +34,8 @@ public:
 
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
+    void timerCallback() override;
+    void previewClicked();
     void refreshFromModel();
     void setStatus(const juce::String& text);
 
@@ -90,6 +92,7 @@ private:
     ui::StyledButton exportButton{"Export MIDI...", ui::StyledButton::Look::Primary, 15.0f};
 
     // footer
+    ui::StyledButton previewButton{"Preview", ui::StyledButton::Look::Primary, 15.0f};
     juce::Label footerNote;
     ui::StyledButton copyButton{"Copy progression", ui::StyledButton::Look::Outline};
     ui::StyledButton pasteButton{"Paste", ui::StyledButton::Look::Outline};

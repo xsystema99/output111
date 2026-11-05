@@ -136,6 +136,20 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - **Not verified.** Visual appearance and mouse behaviour have not been seen: JUCE cannot be built or run in the
   authoring environment; CI compiles it and the user tests it in Live.
 
+## 4e. Preview design notes
+
+- `PreviewTransport` (core) is only a clock: it produces the `TransportBlock` for the same `PlaybackScheduler` the host
+  transport feeds. So preview timing, note release and edit-while-playing behaviour are the code already tested
+  for M3/M4, and the notes are the ones the exported file contains.
+- The host always wins: a request is ignored while the host plays and a running preview is cancelled when it starts
+  (the scheduler then sees an ordinary locate). The preview ends itself at the end of the last chord with one
+  "stopped" block so every note is released.
+- Audio thread: two atomics (requested, running) plus the progression end in quarter notes; the clock lives under
+  the scheduler's try-lock. The playhead line shows the preview position while previewing.
+- **Open risk:** a host may stop calling `processBlock` for an instrument that receives no MIDI while its transport is
+  stopped. Unknown for Live 12.4.16 until tested.
+- Not done: auditioning a single chord when it is clicked in the palette (would reuse the same clock with a short range).
+
 ## 5. Risks and open decisions
 
 - **Plugin type in Ableton.** Live has no VST3 "MIDI effect" slot for third-party plugins. The
