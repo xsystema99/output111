@@ -12,6 +12,8 @@ namespace chordcore {
 struct MidiExportOptions {
     std::string trackName = "Chords";  ///< empty = no track-name meta event
     bool writeKeySignature = true;
+    /// Text meta events (FF 01) written at tick 0 after the key signature; they never touch the note events.
+    std::vector<std::string> textMetadata;
 };
 
 /// Appends a MIDI variable-length quantity. Throws std::out_of_range if value > 0x0FFFFFFF.

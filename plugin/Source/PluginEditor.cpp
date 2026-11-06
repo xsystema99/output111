@@ -32,7 +32,7 @@ void styleCombo(juce::ComboBox& box) {
 }
 
 constexpr int kPaletteDegrees = 7;
-constexpr int kBaseWidth = 640, kBaseHeight = 968;  // the smallest size: the layout below is tuned for it
+constexpr int kBaseWidth = 640, kBaseHeight = 980;  // the smallest size: the layout below is tuned for it
 
 }  // namespace
 
@@ -294,6 +294,19 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     dragPartBox.setSelectedId(1, juce::dontSendNotification);
     dragPartBox.setTooltip("Which MIDI file the drag handle hands to Live (both = Format 1 file with a Chords and a Melody track)");
     styleCombo(dragPartBox);
+    nameFormatBox.addItem("Name: Absolute", 1);
+    nameFormatBox.addItem("Name: Roman", 2);
+    nameFormatBox.addItem("Name: Both", 3);
+    nameFormatBox.setTooltip("Filename Format: how exported and dragged MIDI files are named from the progression (Absolute chord names, Roman numerals, or Both)");
+    styleCombo(nameFormatBox);
+    nameFormatBox.setWantsKeyboardFocus(false);
+    nameFormatBox.onChange = [this] { nameFormatChanged(); };
+    styleLabel(namePreviewLabel, 11.0f, false, ui::mutedTextColour());
+    namePreviewLabel.setMinimumHorizontalScale(1.0f);
+    namePreviewLabel.setInterceptsMouseClicks(true, false);  // so the tooltip with the full name can show
+    addAndMakeVisible(nameFormatBox);
+    addAndMakeVisible(namePreviewLabel);
+    dragPartBox.onChange = [this] { updateNamePreview(); };
     previewButton.onClick = [this] { previewClicked(); };
     copyButton.onClick = [this] { copyClicked(); };
     pasteButton.onClick = [this] { pasteClicked(); };
@@ -488,8 +501,11 @@ void ChordSketchEditor::resized() {
     tools.removeFromLeft(8);
     exportButton.setBounds(tools.removeFromRight(132));
     tools.removeFromRight(8);
+    nameFormatBox.setBounds(tools.removeFromRight(132).withSizeKeepingCentre(132, 30));
+    tools.removeFromRight(8);
     tempoSlider.setBounds(tools);
-    area.removeFromTop(10);
+    namePreviewLabel.setBounds(area.removeFromTop(16).withTrimmedLeft(2));
+    area.removeFromTop(6);
 
     // footer
     auto footer = area.removeFromTop(38);
@@ -543,6 +559,8 @@ void ChordSketchEditor::refreshFromModel() {
     melodySelectionChanged();
     selected = timeline.getPrimary();
     inspector.setModel(model, timeline.getSelection(), selected);
+    nameFormatBox.setSelectedId(static_cast<int>(model.exportNaming) + 1, juce::dontSendNotification);
+    updateNamePreview();
 
     // key / scale / meter
     for (int pc = 0; pc < 12; ++pc) tonicBox.changeItemText(pc + 1, juce::String(noteName(model.key, pc)));
@@ -835,6 +853,26 @@ void ChordSketchEditor::pasteClicked() {
     }
 }
 
+ProjectExportOptions ChordSketchEditor::dragOptions() const {
+    ProjectExportOptions options;  // whole project, chords as played: the same options the drag handle exports with
+    const int part = dragPartBox.getSelectedItemIndex();
+    options.part = part == 1 ? ExportPart::Chords : part == 2 ? ExportPart::Melody : ExportPart::Combined;
+    return options;
+}
+
+void ChordSketchEditor::updateNamePreview() {
+    const auto name = juce::String::fromUTF8(generateMidiFilename(model, model.exportNaming, dragOptions()).c_str());
+    namePreviewLabel.setText("File name: " + name, juce::dontSendNotification);
+    namePreviewLabel.setTooltip(name);  // the complete name; the label itself may show an ellipsis
+}
+
+void ChordSketchEditor::nameFormatChanged() {
+    const auto format = static_cast<MidiFilenameFormat>(std::clamp(nameFormatBox.getSelectedId() - 1, 0, 2));
+    if (format == model.exportNaming) return;
+    const auto result = chordProcessor.editProgression("Filename format", [format](Progression& p) { p.exportNaming = format; }, "export-naming");
+    if (!result.ok) setStatus("Could not change the filename format: " + juce::String(result.error));
+}
+
 void ChordSketchEditor::exportMidiClicked() {
     // Ask for the bars first. The range starts as the selected chords' span (or the whole project).
     const Tick bar = model.timeSignature.ticksPerBar();
@@ -851,39 +889,30 @@ void ChordSketchEditor::exportMidiClicked() {
         lastBar = static_cast<int>((last - 1) / bar) + 1;
     }
 
-    auto* window = new juce::AlertWindow("Export MIDI", "Bars to export (the whole project is bars 1 to " + juce::String(totalBars) + ").",
-                                         juce::MessageBoxIconType::NoIcon);
-    window->addTextEditor("from", juce::String(firstBar), "From bar:");
-    window->addTextEditor("to", juce::String(lastBar), "To bar:");
-    window->addComboBox("part", juce::StringArray{"Chords + melody (Combined.mid)", "Chords only (Chords.mid)", "Melody only (Melody.mid)"}, "Export:");
-    window->addComboBox("channel", juce::StringArray{"Melody on its own channel (" + juce::String(model.melodySettings.melodyChannel) + ")", "Melody on channel 1 (compatibility)"},
-                        "Melody channel:");
-    window->addComboBox("voicing", juce::StringArray{"Chords as played (with Chord Density)", "Chords with original voicing"}, "Chord voicing:");
-    window->addButton("Choose file...", 1, juce::KeyPress(juce::KeyPress::returnKey));
-    window->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    auto dialog = std::make_unique<ExportDialog>(model, firstBar, lastBar, totalBars);
     juce::Component::SafePointer<ChordSketchEditor> safeThis(this);
-    window->enterModalState(true, juce::ModalCallbackFunction::create([safeThis, window, totalBars](int result) {
-        if (result != 1 || safeThis == nullptr) return;
-        const int from = window->getTextEditorContents("from").getIntValue();
-        const int to = window->getTextEditorContents("to").getIntValue();
-        if (from < 1 || to < from || to > kMaxLengthBars) {
-            safeThis->setStatus("Bar range not valid: use 1 to " + juce::String(std::max(totalBars, 1)) + " (first bar not after the last).");
-            return;
+    dialog->onChoose = [safeThis](const ProjectExportOptions& options, MidiFilenameFormat format) {
+        if (safeThis == nullptr) return true;
+        if (format != safeThis->model.exportNaming) {  // the choice is remembered with the project
+            safeThis->chordProcessor.editProgression("Filename format", [format](Progression& p) { p.exportNaming = format; }, "export-naming");
         }
-        ProjectExportOptions options;
-        const int part = window->getComboBoxComponent("part")->getSelectedItemIndex();
-        options.part = part == 1 ? ExportPart::Chords : part == 2 ? ExportPart::Melody : ExportPart::Combined;
-        options.melodyOnChannel1 = window->getComboBoxComponent("channel")->getSelectedItemIndex() == 1;
-        options.originalVoicing = window->getComboBoxComponent("voicing")->getSelectedItemIndex() == 1;
-        options.firstBar = from;
-        options.lastBar = to;
-        safeThis->chooseExportFile(options);
-    }), true);
+        safeThis->chooseExportFile(options, format);
+        return true;
+    };
+    juce::DialogWindow::LaunchOptions launch;
+    launch.content.setOwned(dialog.release());
+    launch.dialogTitle = "Export MIDI";
+    launch.dialogBackgroundColour = ui::backgroundColour();
+    launch.componentToCentreAround = this;
+    launch.escapeKeyTriggersCloseButton = true;
+    launch.useNativeTitleBar = true;
+    launch.resizable = false;
+    launch.launchAsync();
 }
 
-void ChordSketchEditor::chooseExportFile(const ProjectExportOptions& options) {
-    const auto defaultFile =
-        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(exportFileName(options.part, options.originalVoicing));
+void ChordSketchEditor::chooseExportFile(const ProjectExportOptions& options, MidiFilenameFormat format) {
+    const auto suggested = juce::String::fromUTF8(generateMidiFilename(model, format, options).c_str());  // the same name the preview showed
+    const auto defaultFile = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(suggested);
 
     fileChooser = std::make_unique<juce::FileChooser>("Export MIDI file", defaultFile, "*.mid");
     const auto chooserFlags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
@@ -915,14 +944,23 @@ void ChordSketchEditor::writeMidiTo(const juce::File& file, const ProjectExportO
 
 juce::File ChordSketchEditor::writeDragFile(juce::String& error) {
     try {
-        ProjectExportOptions options;  // the same export path as "Export MIDI...", whole project
-        const int part = dragPartBox.getSelectedItemIndex();
-        options.part = part == 1 ? ExportPart::Chords : part == 2 ? ExportPart::Melody : ExportPart::Combined;
+        const ProjectExportOptions options = dragOptions();  // the same export path and the same naming as "Export MIDI..."
         const auto bytes = chordProcessor.exportMidiBytes(options);
-        const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("ChordSketch");
+        const auto root = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("ChordSketch");
+        if (!root.createDirectory().wasOk()) { error = "could not create " + root.getFullPathName(); return {}; }
+        // Each drag gets its own folder, so the name is never overwritten while the receiving application still reads an older
+        // one; folders older than a day are removed.
+        for (const auto& old : root.findChildFiles(juce::File::findDirectories, false)) {
+            if (old.getCreationTime() < juce::Time::getCurrentTime() - juce::RelativeTime::days(1)) old.deleteRecursively();
+        }
+        const auto dir = root.getChildFile(juce::String::toHexString(juce::Time::currentTimeMillis()));
         if (!dir.createDirectory().wasOk()) { error = "could not create " + dir.getFullPathName(); return {}; }
-        const auto file = dir.getChildFile(exportFileName(options.part, options.originalVoicing));
-        if (!file.replaceWithData(bytes.data(), bytes.size())) { error = "could not write " + file.getFullPathName(); return {}; }
+        auto file = dir.getChildFile(juce::String::fromUTF8(generateMidiFilename(model, model.exportNaming, options).c_str()));
+        if (!file.replaceWithData(bytes.data(), bytes.size())) {
+            // Documented fallback: the same name in plain ASCII (b, #, -) for file systems that refuse the music signs.
+            file = dir.getChildFile(juce::String(generateMidiFilename(model, model.exportNaming, options, true)));
+            if (!file.replaceWithData(bytes.data(), bytes.size())) { error = "could not write " + file.getFullPathName(); return {}; }
+        }
         return file;
     } catch (const std::exception& e) {
         error = e.what();

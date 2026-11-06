@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "GridComponent.h"
+#include "ExportDialog.h"
 #include "GeneratorPanel.h"
 #include "HarmonicInspector.h"
 #include "MelodyRollComponent.h"
@@ -62,7 +63,7 @@ private:
     void pasteClicked();
     void exportMidiClicked();
     void writeMidiTo(const juce::File& file, const chordcore::ProjectExportOptions& options);
-    void chooseExportFile(const chordcore::ProjectExportOptions& options);
+    void chooseExportFile(const chordcore::ProjectExportOptions& options, chordcore::MidiFilenameFormat format);
     void muteChanged();
     void openGenerator();
     void runGenerator(int action);  ///< 0 generate, 1 reroll, 2 selected region, 3 whole project, 4 affected chords
@@ -140,6 +141,12 @@ private:
     ui::StyledButton previewButton{"Preview", ui::StyledButton::Look::Primary, 15.0f};
     MidiDragHandle dragHandle;
     juce::ComboBox dragPartBox;
+    juce::ComboBox nameFormatBox;   // Filename Format: Absolute / Roman / Both (saved with the project)
+    juce::Label namePreviewLabel;   // the proposed drag / export file name, live
+    juce::TooltipWindow tooltipWindow{this, 600};
+    void updateNamePreview();
+    void nameFormatChanged();
+    chordcore::ProjectExportOptions dragOptions() const;
     ui::StyledButton copyButton{"Copy progression", ui::StyledButton::Look::Outline};
     ui::StyledButton pasteButton{"Paste", ui::StyledButton::Look::Outline};
     juce::Label statusLabel;

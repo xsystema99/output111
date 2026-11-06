@@ -382,6 +382,8 @@ const std::pair<const char*, RegisterPreset> kRegisters[] = {{"low", RegisterPre
 const std::pair<const char*, Distribution> kDistributions[] = {{"automatic", Distribution::Automatic}, {"close", Distribution::Close},
                                                                {"open", Distribution::Open}, {"spread", Distribution::Spread}};
 
+const std::pair<const char*, MidiFilenameFormat> kNamingFormats[] = {
+    {"absolute", MidiFilenameFormat::Absolute}, {"roman", MidiFilenameFormat::Roman}, {"both", MidiFilenameFormat::Both}};
 const std::pair<const char*, DiceMode> kDiceModes[] = {{"preserveRoot", DiceMode::PreserveRoot}, {"replaceHarmony", DiceMode::ReplaceHarmony}};
 const std::pair<const char*, DiceComplexity> kDiceComplexities[] = {{"conservative", DiceComplexity::Conservative},
                                                                     {"adventurous", DiceComplexity::Adventurous},
@@ -502,6 +504,7 @@ std::string serializeProgression(const Progression& p) {
     // is byte-identical to a version-1 file written before they existed (and still opens in older builds).
     if (p.octave != 0) out += ",\"octave\":" + std::to_string(p.octave);
     if (p.lengthBars != 0) out += ",\"lengthBars\":" + std::to_string(p.lengthBars);
+    if (p.exportNaming != MidiFilenameFormat::Absolute) out += std::string(",\"exportNaming\":\"") + nameOf(p.exportNaming, kNamingFormats) + "\"";
     if (p.dice != DiceSettings{}) out += ",\"dice\":" + diceJson(p.dice);
     if (p.voicing != VoicingSettings{}) out += ",\"voicing\":" + voicingJson(p.voicing);
     out += ",\"blocks\":[";
@@ -642,6 +645,10 @@ DeserializeResult deserializeProgression(std::string_view text) {
         return fail(r.error);
     }
 
+    if (const Json* v = r.member(root, "$", "exportNaming", /*required=*/false)) {
+        (void)v;
+        if (!r.enumeration(root, "$", "exportNaming", p.exportNaming, kNamingFormats, false)) return fail(r.error);
+    }
     if (const Json* v = r.member(root, "$", "dice", /*required=*/false)) {
         if (!readDice(r, *v, "$.dice", p.dice)) return fail(r.error);
     }

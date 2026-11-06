@@ -39,4 +39,10 @@ ParseResult parseRomanNumeral(std::string_view text);
 /// For every other chord, parseRomanNumeral(*formatRomanNumeral(c)).chord == c.
 std::optional<std::string> formatRomanNumeral(const ChordSpec& chord);
 
+/// Chromatic Roman numeral relative to the PROJECT TONIC: the root is read against the major scale on that tonic whatever
+/// the project mode (so in F minor, Db is "bVImaj7", Ab "bIIImaj9", Eb7 "bVII7", F minor "i9"; the tritone is "#iv").
+/// Case, quality, extensions, alterations, diminished / half-diminished marks and inversion figures are those of
+/// formatRomanNumeral(). std::nullopt where that function has no symbol. ASCII accidentals ("b", "#").
+std::optional<std::string> chromaticRomanNumeral(const Key& key, const ChordSpec& chord);
+
 }  // namespace chordcore

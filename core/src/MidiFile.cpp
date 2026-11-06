@@ -1,4 +1,5 @@
 #include <chordcore/MidiFile.h>
+#include <chordcore/MidiFilename.h>
 
 #include <algorithm>
 #include <cmath>
@@ -101,7 +102,7 @@ namespace {
 
 /// Track name, time signature, tempo and (optionally) key signature at tick 0.
 void addHeaderEvents(std::vector<RawEvent>& events, const Progression& progression, const std::string& trackName,
-                     bool timing, bool writeKeySignature) {
+                     bool timing, bool writeKeySignature, const std::vector<std::string>& textMetadata = {}) {
     if (!trackName.empty()) events.push_back({0, kMeta, 0, metaEvent(0x03, Bytes(trackName.begin(), trackName.end()))});
     if (!timing) return;
 
@@ -123,6 +124,7 @@ void addHeaderEvents(std::vector<RawEvent>& events, const Progression& progressi
                           metaEvent(0x59, {static_cast<std::uint8_t>(static_cast<std::int8_t>(sharps)),
                                            static_cast<std::uint8_t>(progression.key.mode == Mode::Minor ? 1 : 0)})});
     }
+    for (const auto& text : textMetadata) events.push_back({0, kMeta, 0, metaEvent(0x01, Bytes(text.begin(), text.end()))});
 }
 
 void addNoteEvents(std::vector<RawEvent>& events, const std::vector<NoteEvent>& notes, Tick& lastEnd) {
@@ -155,7 +157,7 @@ std::vector<std::uint8_t> buildMidiFile(const Progression& progression, const st
                                         const MidiExportOptions& options) {
     checkProgression(progression);
     std::vector<RawEvent> events;
-    addHeaderEvents(events, progression, options.trackName, true, options.writeKeySignature);
+    addHeaderEvents(events, progression, options.trackName, true, options.writeKeySignature, options.textMetadata);
     Tick lastEnd = 0;
     addNoteEvents(events, notes, lastEnd);
     events.push_back({std::max(progression.lengthTicks(), lastEnd), kEndOfTrack, 0, {0xFF, 0x2F, 0x00}});
@@ -254,17 +256,22 @@ std::vector<std::uint8_t> exportProject(const Progression& progression, const Pr
         header.lengthBars = options.lastBar - options.firstBar + 1;
     }
     const Tick endTick = header.lengthTicks();
+    // Both harmonic representations travel with every file, whatever the filename format (from the unclipped project).
+    // The melody-only file stays independent of the chords (its own naming and contents), so it carries none.
+    const std::vector<std::string> metadata =
+        options.part == ExportPart::Melody ? std::vector<std::string>{} : midiMetadataText(progression, options.firstBar, options.lastBar);
 
     if (options.part == ExportPart::Chords || options.part == ExportPart::Melody) {
         MidiExportOptions single;
         single.trackName = options.part == ExportPart::Chords ? "Chords" : "Melody";
         single.writeKeySignature = options.writeKeySignature;
+        single.textMetadata = metadata;
         return buildMidiFile(header, options.part == ExportPart::Chords ? chords : melody, single);
     }
 
     // Combined: Format 1. Track 0 carries name, meter, tempo and key for every track; then Chords and Melody.
     std::vector<RawEvent> conductor;
-    addHeaderEvents(conductor, header, "ChordSketch", true, options.writeKeySignature);
+    addHeaderEvents(conductor, header, "ChordSketch", true, options.writeKeySignature, metadata);
     conductor.push_back({endTick, kEndOfTrack, 0, {0xFF, 0x2F, 0x00}});
 
     auto noteTrack = [&](const char* name, const std::vector<NoteEvent>& notes) {

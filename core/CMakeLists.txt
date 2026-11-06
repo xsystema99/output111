@@ -18,7 +18,8 @@ add_library(chordcore STATIC
     src/MelodyEdit.cpp
     src/MelodyGenerator.cpp
     src/Voicing.cpp
-    src/ChromaticDice.cpp)
+    src/ChromaticDice.cpp
+    src/MidiFilename.cpp)
 
 target_include_directories(chordcore PUBLIC include)
 target_compile_features(chordcore PUBLIC cxx_std_17)

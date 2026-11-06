@@ -320,3 +320,11 @@ Not yet tested in Live. Core behaviour is unit-tested (voicing, dice, export, pe
 6. Chromatic Dice: select ONE chord, Dice Roll: it becomes a chord from the parallel modes of the project key (feedback line shows name, Roman numeral, source modes); Reroll gives another; Undo goes back; Redo brings the same chord back. Preserve Root keeps the root; Replace Harmony may change it. The key never changes. Density of that chord stays. The melody is NOT regenerated: "Regenerate Affected Melody" lights up; use it and locked notes stay.
 7. Export MIDI: choose "Chords with original voicing": file is "Original Chords.mid" and ignores density; "as played" matches what Live plays.
 8. Save the Live set, reopen: density, dice settings and the chosen chords are restored. An old ChordSketch project still loads.
+
+### Manual checklist: MIDI filename format (not yet tested in Live)
+1. Main window: next to "Export MIDI..." there is a "Name:" selector (Absolute / Roman / Both) and under the tools row a "File name:" line. Change the selector: the line updates; edit a chord, roll Chromatic Dice, change key or scale, delete or insert a chord: it updates each time.
+2. Click "Export MIDI...": the dialog shows the Filename Format selector and the proposed name beneath it; changing the format, bar range, export type or chord voicing updates that name. Long names end in "..." and the full name is in the tooltip.
+3. Choose file...: the file chooser proposes exactly that name. Check an F minor progression Fm9 - Dbmaj7 - Abmaj9 - Eb7: Absolute `Fm9 - Dbmaj7 - Abmaj9 - Eb7`, Roman `i9 - bVImaj7 - bIIImaj9 - bVII7`, Both `Fm9 (i9) - ...` (with the flat signs and en dashes).
+4. Drag the MIDI handle into an Ableton track: the dropped clip file carries the same name; drag twice in a row: both work.
+5. Save the Live set, reopen: the selected format is still there.
+6. Import an exported file in Live: the notes are identical whichever naming format was used; the clip info/text shows the progression lines.

@@ -1,5 +1,7 @@
 #include <chordcore/RomanNumeral.h>
 
+#include <chordcore/ChordEdit.h>
+
 #include <string>
 #include <string_view>
 #include <utility>
@@ -249,6 +251,15 @@ std::optional<std::string> formatRomanNumeral(const ChordSpec& chord) {
     if (chord.suspension == Suspension::Sus2) s += "sus2";
     if (chord.suspension == Suspension::Sus4) s += "sus4";
     return s;
+}
+
+std::optional<std::string> chromaticRomanNumeral(const Key& key, const ChordSpec& chord) {
+    if (!chord.isValid()) return std::nullopt;
+    ChordSpec spelled = chord;
+    const Key majorOnTonic{key.tonic, Mode::Major};
+    const int rootRel = ((chordRootPitchClass(key, chord) - key.tonic) % 12 + 12) % 12;
+    if (!spellRoot(majorOnTonic, rootRel, spelled.degree, spelled.accidental)) return std::nullopt;
+    return formatRomanNumeral(spelled);
 }
 
 }  // namespace chordcore

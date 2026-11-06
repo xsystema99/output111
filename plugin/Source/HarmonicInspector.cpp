@@ -380,7 +380,7 @@ void HarmonicInspector::setModel(const Progression& m, const std::vector<std::si
 
 std::vector<HarmonicInspector::Row> HarmonicInspector::infoFor(const Progression& p, const ChordSpec& chord) const {
     std::vector<Row> out;
-    const auto roman = formatRomanNumeral(chord);
+    const auto roman = chromaticRomanNumeral(p.key, chord);
     bool allInScale = false;
     const juce::String modes = modeList(p.key, chord, allInScale);
     const int root = chordRootPitchClass(p.key, chord);

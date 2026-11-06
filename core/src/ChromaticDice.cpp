@@ -252,7 +252,7 @@ std::vector<DiceCandidate> diceCandidates(const Progression& p, std::size_t bloc
         const int tensionWeight = settings.complexity == DiceComplexity::Conservative ? 2 : settings.complexity == DiceComplexity::Adventurous ? 1 : 0;
         score -= tension * tensionWeight;
         c.score = score;
-        if (auto roman = formatRomanNumeral(c.chord)) c.roman = *roman;
+        if (auto roman = chromaticRomanNumeral(key, c.chord)) c.roman = *roman;
         c.name = chordName(key, c.chord);
         pool.push_back(std::move(c));
     }
