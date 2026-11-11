@@ -60,6 +60,15 @@ OpResult resizeBlockStart(Progression& progression, std::size_t index, Tick desi
 /// Moves the right edge (the start stays); same limits as resizeBlockStart, bounded above by the next block.
 OpResult resizeBlockEnd(Progression& progression, std::size_t index, Tick desiredEnd, Tick unit);
 
+/// Like resizeBlockEnd, but growing past the next block PUSHES the following chords later (keeping their order,
+/// lengths and any gaps that are not needed) instead of stopping at them. Shrinking leaves a gap, as before. Growth is
+/// bounded by the end of the timeline: the tail is never pushed beyond it, and nothing is ever overwritten or shortened.
+OpResult resizeBlockEndRipple(Progression& progression, std::size_t index, Tick desiredEnd, Tick unit);
+
+/// Sets the exact length of one chord (not snapped; minimum 1 tick), pushing later chords like resizeBlockEndRipple.
+/// Fails when the tail would not fit before the end of the timeline.
+OpResult setBlockLength(Progression& progression, std::size_t index, Tick durationTicks);
+
 /// Inserts a chord at the snapped tick. Its length is `duration` ticks (0 = one bar), shortened to fit the gap
 /// before the next block; the duration is independent of the snap unit. Fails if the snapped position is inside an
 /// existing block or past the end limit. Keeps blocks sorted by start.

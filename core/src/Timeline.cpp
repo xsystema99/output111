@@ -123,6 +123,50 @@ OpResult resizeBlockEnd(Progression& p, std::size_t index, Tick desiredEnd, Tick
     return succeed(index);
 }
 
+namespace {
+
+/// Latest end the block at `index` may have if every later block is pushed (never shortened) and must still fit
+/// before the end of the timeline. Blocks are in time order.
+Tick rippleLimit(const Progression& p, std::size_t index) {
+    Tick limit = maxEndTick(p.timeSignature);
+    for (std::size_t i = p.blocks.size(); i-- > index + 1;) limit -= p.blocks[i].durationTicks;
+    return limit;
+}
+
+/// Moves later blocks just enough to start at or after `end`.
+void pushFollowers(Progression& p, std::size_t index, Tick end) {
+    Tick cursor = end;
+    for (std::size_t i = index + 1; i < p.blocks.size(); ++i) {
+        if (p.blocks[i].startTick < cursor) p.blocks[i].startTick = cursor;
+        cursor = p.blocks[i].endTick();
+    }
+}
+
+}  // namespace
+
+OpResult resizeBlockEndRipple(Progression& p, std::size_t index, Tick desiredEnd, Tick unit) {
+    if (index >= p.blocks.size()) return fail("no such block");
+    ChordBlock& block = p.blocks[index];
+    const Tick minDuration = std::max<Tick>(unit, 1);
+    const Tick lo = std::min(block.startTick + minDuration, block.endTick());  // never forced to grow
+    const Tick hi = std::max(rippleLimit(p, index), block.endTick());
+    const Tick end = std::clamp(snapToUnit(desiredEnd, unit), lo, hi);
+    block.durationTicks = end - block.startTick;
+    pushFollowers(p, index, end);
+    return succeed(index);
+}
+
+OpResult setBlockLength(Progression& p, std::size_t index, Tick durationTicks) {
+    if (index >= p.blocks.size()) return fail("no such block");
+    if (durationTicks < 1) return fail("a chord needs a length of at least one tick");
+    ChordBlock& block = p.blocks[index];
+    const Tick end = block.startTick + durationTicks;
+    if (end > rippleLimit(p, index)) return fail("not enough room before the end of the timeline");
+    block.durationTicks = durationTicks;
+    pushFollowers(p, index, end);
+    return succeed(index);
+}
+
 OpResult addBlock(Progression& p, const ChordSpec& chord, Tick atTick, Tick unit, Tick duration) {
     if (!chord.isValid()) return fail("invalid chord");
     if (!p.timeSignature.isValid()) return fail("invalid time signature");

@@ -490,3 +490,69 @@ TEST_CASE("timeline operations through Document: undoable, and a failed one is r
     REQUIRE(d.undo());
     CHECK(d.progression() == original);
 }
+
+// ---------------------------------------------------------------------------------- resize with ripple
+
+TEST_CASE("resizeBlockEndRipple pushes the following chords", "[timeline][resize][ripple]") {
+    auto p = makeDemoProgression();  // four back-to-back bars: 0, 3840, 7680, 11520
+    const auto before = p;
+
+    SECTION("a chord with no gap after it can be lengthened (plain resize cannot)") {
+        auto q = p;
+        REQUIRE(resizeBlockEnd(q, 0, 3840 + 1920, 960).ok);
+        CHECK(q == before);  // stopped by the neighbour: this was the reported bug
+        REQUIRE(resizeBlockEndRipple(p, 0, 3840 + 1920, 960).ok);
+        CHECK(p.blocks[0].durationTicks == 5760);
+        CHECK(p.blocks[1].startTick == 5760);
+        CHECK(p.blocks[2].startTick == 9600);
+        CHECK(p.blocks[3].startTick == 13440);
+        CHECK(p.blocks[1].durationTicks == 3840);  // lengths never change
+        CHECK(p.validate().empty());
+    }
+    SECTION("an existing gap absorbs the push") {
+        REQUIRE(resizeBlockEnd(p, 1, 3840 + 1920, 960).ok);  // block 1: 3840..5760, gap 5760..7680
+        REQUIRE(resizeBlockEndRipple(p, 0, 3840 + 1920, 960).ok);
+        CHECK(p.blocks[1].startTick == 5760);  // pushed by 1920
+        CHECK(p.blocks[2].startTick == 7680);  // the gap was big enough: untouched
+        CHECK(p.blocks[3].startTick == 11520);
+        CHECK(p.validate().empty());
+    }
+    SECTION("shrinking leaves a gap and moves nothing") {
+        REQUIRE(resizeBlockEndRipple(p, 0, 1920, 960).ok);
+        CHECK(p.blocks[0].durationTicks == 1920);
+        CHECK(p.blocks[1].startTick == 3840);
+    }
+    SECTION("the tail is never pushed past the end of the timeline") {
+        REQUIRE(resizeBlockEndRipple(p, 0, 999'999'999, 960).ok);
+        CHECK(p.blocks.back().endTick() == maxEndTick(p.timeSignature));
+        CHECK(p.validate().empty());
+        CHECK(p.blocks[1].durationTicks == 3840);
+    }
+    SECTION("the last chord behaves like the plain resize") {
+        REQUIRE(resizeBlockEndRipple(p, 3, 999'999'999, 3840).ok);
+        CHECK(p.blocks[3].endTick() == maxEndTick(p.timeSignature));
+    }
+    SECTION("bad index") { CHECK_FALSE(resizeBlockEndRipple(p, 9, 100, 960).ok); }
+}
+
+TEST_CASE("setBlockLength", "[timeline][resize][ripple]") {
+    auto p = makeDemoProgression();
+    SECTION("exact lengths, not snapped, later chords pushed") {
+        REQUIRE(setBlockLength(p, 1, 5000).ok);
+        CHECK(p.blocks[1].durationTicks == 5000);
+        CHECK(p.blocks[2].startTick == 3840 + 5000);
+        CHECK(p.blocks[3].startTick == 3840 + 5000 + 3840);
+        CHECK(p.validate().empty());
+    }
+    SECTION("shorter: gap, nothing moves") {
+        REQUIRE(setBlockLength(p, 1, 960).ok);
+        CHECK(p.blocks[2].startTick == 7680);
+    }
+    SECTION("refuses what cannot fit, and leaves the progression unchanged") {
+        const auto before = p;
+        CHECK_FALSE(setBlockLength(p, 0, maxEndTick(p.timeSignature)).ok);
+        CHECK(p == before);
+        CHECK_FALSE(setBlockLength(p, 0, 0).ok);
+        CHECK_FALSE(setBlockLength(p, 7, 960).ok);
+    }
+}

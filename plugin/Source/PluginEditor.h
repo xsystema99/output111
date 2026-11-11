@@ -57,6 +57,8 @@ private:
     void lengthChanged();
     void tempoChanged();
     void splitClicked();
+    void chordLengthClicked();
+    chordcore::Tick insertLengthTicks() const;
     void duplicateClicked();
     void deleteClicked();
     void copyClicked();
@@ -109,6 +111,7 @@ private:
     // palette
     juce::Label paletteCaption{{}, "Chord palette"};
     std::vector<std::unique_ptr<ui::StyledButton>> paletteButtons;
+    ui::StyledButton chordLengthButton{"Chord length", ui::StyledButton::Look::Outline, 13.0f};
 
     // selected chord
     juce::Label selectedCaption{{}, "Selected chord"}, selectedName, chordOctaveLabel, inversionLabel;

@@ -494,7 +494,7 @@ TEST_CASE("scheduler loop: a transport started far past the pattern (bar 65) sti
     plain.setNotes(notes);
     CHECK(plain.process(tb).empty());
 
-    // Starting mid-pattern in a later repeat: bar 66 beat 1 is the second chord of the pattern.
+    // Starting at bar 66 also plays the FIRST chord: playback starts on "1" wherever it starts.
     PlaybackScheduler other;
     other.setNotes(notes);
     other.setLoopLength(loop);
@@ -569,4 +569,95 @@ TEST_CASE("scheduler loop: tempo changes between blocks are followed and the tra
     for (const auto& e : scheduler.process(tb)) offs += e.noteOn ? 0 : 1;
     CHECK(offs == 3);
     CHECK(scheduler.activeNoteCount() == 0);
+}
+
+// ------------------------------------------------------------------------------------------ start on 1
+
+namespace {
+std::vector<int> onPitches(const std::vector<ScheduledEvent>& events) {
+    std::vector<int> pitches;
+    for (const auto& e : events) if (e.noteOn) pitches.push_back(e.pitch);
+    std::sort(pitches.begin(), pitches.end());
+    return pitches;
+}
+TransportBlock blockAt(double ppq, bool playing = true, int samples = 512) {
+    TransportBlock tb;
+    tb.playing = playing;
+    tb.bpm = 120.0;
+    tb.sampleRate = 48000.0;
+    tb.numSamples = samples;
+    tb.ppqStart = ppq;
+    return tb;
+}
+}  // namespace
+
+TEST_CASE("scheduler start-on-1: the pattern starts where the transport starts", "[scheduler][loop][anchor]") {
+    const Progression p = makeDemoProgression();  // I V vi IV, one bar each
+    const auto notes = generateNotes(p);
+    const Tick loop = p.lengthTicks();
+    std::vector<int> first;
+    for (const auto& n : notes) if (n.startTick == 0) first.push_back(n.pitch);
+    std::sort(first.begin(), first.end());
+    std::vector<int> second;
+    for (const auto& n : notes) if (n.startTick == 3840) second.push_back(n.pitch);
+    std::sort(second.begin(), second.end());
+    REQUIRE(first != second);
+
+    for (const double startPpq : {0.0, 4.0, 64.0 * 4.0, 65.0 * 4.0, 258.5, 1000.25, 3.0}) {
+        INFO("start at ppq " << startPpq);
+        PlaybackScheduler s;
+        s.setNotes(notes);
+        s.setLoopLength(loop);
+        CHECK(onPitches(s.process(blockAt(startPpq))) == first);
+    }
+
+    SECTION("the second chord arrives exactly one bar after the start, mid-bar starts included") {
+        PlaybackScheduler s;
+        s.setNotes(notes);
+        s.setLoopLength(loop);
+        const double start = 258.5;  // half a beat into a bar of the host timeline
+        double ppq = start;
+        const int samples = 4800;    // 0.1 s = 0.2 quarter notes at 120 BPM
+        REQUIRE(!onPitches(s.process(blockAt(ppq, true, samples))).empty());
+        std::vector<int> seenAtChange;
+        double changeAt = -1.0;
+        for (int i = 0; i < 200 && changeAt < 0.0; ++i) {
+            ppq += 0.2;
+            const auto ons = onPitches(s.process(blockAt(ppq, true, samples)));
+            if (!ons.empty()) { seenAtChange = ons; changeAt = ppq; }
+        }
+        CHECK(seenAtChange == second);
+        CHECK(std::fabs((changeAt - start) - 4.0) < 0.21);  // one 4/4 bar after the start
+    }
+
+    SECTION("a locate while playing keeps the pattern in step with the timeline") {
+        PlaybackScheduler s;
+        s.setNotes(notes);
+        s.setLoopLength(loop);
+        REQUIRE(onPitches(s.process(blockAt(10.0))) == first);  // anchor = 10
+        // jump to 14.0 = anchor + one bar: the second chord, not the first
+        CHECK(onPitches(s.process(blockAt(14.0))) == second);
+        // jump back before the anchor: 6.0 = anchor - 1 bar = 3 bars into the pattern (vi... the last bar's chord)
+        std::vector<int> last;
+        for (const auto& n : notes) if (n.startTick == 3 * 3840) last.push_back(n.pitch);
+        std::sort(last.begin(), last.end());
+        CHECK(onPitches(s.process(blockAt(6.0))) == last);
+    }
+
+    SECTION("stopping and starting again anchors again") {
+        PlaybackScheduler s;
+        s.setNotes(notes);
+        s.setLoopLength(loop);
+        REQUIRE(onPitches(s.process(blockAt(20.0))) == first);
+        s.process(blockAt(20.0, false));
+        CHECK(onPitches(s.process(blockAt(37.5))) == first);
+    }
+
+    SECTION("a start inside the count-in anchors at host position 0") {
+        PlaybackScheduler s;
+        s.setNotes(notes);
+        s.setLoopLength(loop);
+        CHECK(onPitches(s.process(blockAt(-4.0))).empty());
+        CHECK(onPitches(s.process(blockAt(0.0))) == first);
+    }
 }

@@ -32,7 +32,21 @@ void styleCombo(juce::ComboBox& box) {
 }
 
 constexpr int kPaletteDegrees = 7;
-constexpr int kBaseWidth = 640, kBaseHeight = 980;  // the smallest size: the layout below is tuned for it
+juce::String lengthText(Tick ticks, Tick bar) {
+    if (ticks > 0 && bar > 0 && ticks % bar == 0) return juce::String(ticks / bar) + (ticks == bar ? " bar" : " bars");
+    switch (ticks) {
+        case 240: return "1/16";
+        case 480: return "1/8";
+        case 960: return "1/4";
+        case 1920: return "1/2";
+        case 2880: return "dotted 1/2";
+        default: break;
+    }
+    const double beats = static_cast<double>(ticks) / kTicksPerQuarter;
+    return juce::String(beats, 2) + " beats";
+}
+
+constexpr int kBaseWidth = 640, kBaseHeight = 1016;  // the smallest size: the layout below is tuned for it
 
 }  // namespace
 
@@ -257,6 +271,9 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
         };
     }
     splitButton.onClick = [this] { splitClicked(); };
+    chordLengthButton.onClick = [this] { chordLengthClicked(); };
+    chordLengthButton.setTooltip("Length of the selected chords (later chords are pushed, never overwritten). With nothing selected: the length of new chords.");
+    addAndMakeVisible(chordLengthButton);
     duplicateButton.onClick = [this] { duplicateClicked(); };
     deleteButton.onClick = [this] { deleteClicked(); };
     for (auto* b : {&triadButton, &seventhButton, &ninthButton, &sus2Button, &sus4Button, &eleventhButton, &thirteenthButton, &flat9Button,
@@ -459,7 +476,9 @@ void ChordSketchEditor::resized() {
         button->setBounds(palette.removeFromLeft(buttonWidth));
         palette.removeFromLeft(gap);
     }
-    area.removeFromTop(16);
+    area.removeFromTop(6);
+    chordLengthButton.setBounds(area.removeFromTop(30).removeFromLeft(240));
+    area.removeFromTop(10);
 
     // selected chord
     auto selectedHeader = area.removeFromTop(22);
@@ -596,6 +615,9 @@ void ChordSketchEditor::refreshFromModel() {
         const int shownDegree = current != nullptr ? current->degree : insertDegree;
         button.setToggleState(shownDegree == degree && (current == nullptr || current->accidental == 0), juce::dontSendNotification);
     }
+
+    chordLengthButton.setButtonText("Chord length: " + lengthText(hasSelection ? model.blocks[static_cast<std::size_t>(selected)].durationTicks : insertLengthTicks(),
+                                                                  model.timeSignature.ticksPerBar()));
 
     // selected chord
     selectedName.setText(current != nullptr ? juce::String(chordName(model.key, *current)) : juce::String(juce::CharPointer_UTF8("\xE2\x80\x93")),
@@ -809,6 +831,46 @@ void ChordSketchEditor::tempoChanged() {
     const double bpm = tempoSlider.getValue();
     const auto result = chordProcessor.editProgression("Change tempo", [bpm](Progression& prog) { prog.tempoBpm = bpm; }, "tempo");
     if (!result.ok) setStatus("Cannot change tempo: " + juce::String(result.error));
+}
+
+Tick ChordSketchEditor::insertLengthTicks() const {
+    static const Tick lengths[4] = {240, 480, 960, 1920};
+    const int id = std::clamp(insertLengthBox.getSelectedId(), 1, 5);
+    return id == 5 ? model.timeSignature.ticksPerBar() : lengths[id - 1];
+}
+
+void ChordSketchEditor::chordLengthClicked() {
+    const Tick bar = model.timeSignature.ticksPerBar();
+    struct Choice { const char* name; Tick ticks; };
+    const Choice choices[] = {{"1/16 note", 240}, {"1/8 note", 480}, {"1/4 note", 960}, {"1/2 note", 1920}, {"Dotted 1/2 note", 2880},
+                              {"1 bar", bar}, {"2 bars", bar * 2}, {"4 bars", bar * 4}};
+    const auto selection = timeline.getSelection();
+    const bool editing = !selection.empty();
+    juce::PopupMenu menu;
+    menu.addSectionHeader(editing ? "Set length of selected chord(s)" : "Length of new chords");
+    for (int i = 0; i < 8; ++i) menu.addItem(i + 1, choices[i].name);
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&chordLengthButton), [this, choices, selection, editing](int result) {
+        if (result < 1 || result > 8) return;
+        const Tick ticks = choices[result - 1].ticks;
+        if (!editing) {
+            static const Tick ids[4] = {240, 480, 960, 1920};
+            int id = 0;
+            for (int i = 0; i < 4; ++i) if (ids[i] == ticks) id = i + 1;
+            if (ticks == model.timeSignature.ticksPerBar()) id = 5;
+            if (id > 0) insertLengthBox.setSelectedId(id, juce::sendNotification);
+            else setStatus("That length applies to chords you select; new chords use 1/16 to 1 bar.");
+            refreshFromModel();
+            return;
+        }
+        const auto result2 = chordProcessor.editProgression("Chord length", [selection, ticks](Progression& prog) {
+            for (auto index : selection) {
+                const auto r = setBlockLength(prog, index, ticks);
+                if (!r.ok) throw std::runtime_error(r.error);
+            }
+        });
+        if (!result2.ok) setStatus("Chord length not changed: " + juce::String(result2.error));
+        refreshFromModel();
+    });
 }
 
 void ChordSketchEditor::splitClicked() {

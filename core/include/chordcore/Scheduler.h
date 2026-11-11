@@ -55,9 +55,11 @@ public:
     /// changed chord sounds immediately.
     void setNotes(std::vector<NoteEvent> notes);
 
-    /// Loop length in ticks (0 = off). When set, the host position is folded into [0, loopTicks): after the pattern's
-    /// last bar the sequence repeats, so it plays wherever the host transport is (bar 65 included), and a block that
-    /// crosses the pattern end is split so the wrap is sample-accurate. Negative host positions (count-in) are not folded.
+    /// Loop length in ticks (0 = off). When set, the pattern is anchored where playback STARTS: the host tick at which the
+    /// transport starts playing is tick 0 of the pattern ("start on 1"), wherever that is on the host timeline (bar 65
+    /// included; a start inside a count-in anchors at host position 0). The pattern then repeats every loopTicks, and a
+    /// block that crosses the pattern end is split so the wrap is sample-accurate. Locating while playing keeps the
+    /// anchor, so the pattern stays in step with the timeline; stopping and starting again re-anchors.
     /// Call off the audio thread (it reserves the event buffer).
     void setLoopLength(Tick loopTicks);
 
@@ -85,6 +87,8 @@ private:
         int channel;
     };
     std::vector<PendingRelease> pendingReleases_;  ///< sounding notes orphaned by setNotes()
+    bool anchored_ = false;           ///< a start position is recorded for the current play run
+    double anchor_ = 0.0;             ///< host tick that corresponds to tick 0 of the pattern
     bool wasPlaying_ = false;
     double expectedStartTick_ = 0.0;  ///< where the next contiguous block should begin
     double previousHi_ = 0.0;         ///< upper edge of the last block's tick window

@@ -16,7 +16,7 @@ namespace {
 constexpr int kRulerHeight = 34;
 constexpr int kScrollBarHeight = 14;
 constexpr float kLanePad = 6.0f;
-constexpr float kEdgeGrabPixels = 8.0f;
+constexpr float kEdgeGrabPixels = 10.0f;
 constexpr float kDragThreshold = 3.0f;
 
 int textWidth(const juce::Font& font, const juce::String& text) {
@@ -356,10 +356,27 @@ void GridComponent::paint(juce::Graphics& g) {
 
 // ------------------------------------------------------------------------------------------ mouse
 
+namespace {
+/// hitTest, except that the left edge of a chord that touches its predecessor grabs the shared boundary, i.e. the
+/// predecessor's right edge (the only edge that can move there). Otherwise the boundary of back-to-back chords, which is
+/// where the user naturally grabs, would belong to a left edge that cannot move.
+chordcore::Hit hitTestBoundary(const Progression& model, const chordcore::TimelineView& view, double x) {
+    auto hit = chordcore::hitTest(model, view, x, kEdgeGrabPixels);
+    if (hit.index > 0 && hit.zone == HitZone::LeftEdge) {
+        const auto i = static_cast<std::size_t>(hit.index);
+        if (model.blocks[i - 1].endTick() == model.blocks[i].startTick) {
+            hit.index -= 1;
+            hit.zone = HitZone::RightEdge;
+        }
+    }
+    return hit;
+}
+}  // namespace
+
 void GridComponent::mouseMove(const juce::MouseEvent& e) {
     hoverPosition = e.position;
     if (laneBounds().contains(e.getPosition())) {
-        const auto hit = chordcore::hitTest(model, currentView, e.position.x, kEdgeGrabPixels);
+        const auto hit = hitTestBoundary(model, currentView, e.position.x);
         setMouseCursor(hit.zone == HitZone::LeftEdge || hit.zone == HitZone::RightEdge ? juce::MouseCursor::LeftRightResizeCursor
                        : hit.index >= 0                                                ? juce::MouseCursor::NormalCursor
                                                                                        : juce::MouseCursor::PointingHandCursor);
@@ -383,7 +400,7 @@ void GridComponent::mouseDown(const juce::MouseEvent& e) {
     beginDragAutoRepeat(30);
 
     downPosition = dragPosition = e.position;
-    const auto hit = chordcore::hitTest(model, currentView, e.position.x, kEdgeGrabPixels);
+    const auto hit = hitTestBoundary(model, currentView, e.position.x);
 
     if (hit.index >= 0) {
         const auto idx = static_cast<std::size_t>(hit.index);
@@ -442,7 +459,7 @@ void GridComponent::mouseDrag(const juce::MouseEvent& e) {
     switch (gesture) {
         case Gesture::Move: moveBlocks(preview, selection, anchor, tick - grabOffset, unit()); break;
         case Gesture::ResizeStart: resizeBlockStart(preview, anchor, tick, unit()); break;
-        case Gesture::ResizeEnd: resizeBlockEnd(preview, anchor, tick, unit()); break;
+        case Gesture::ResizeEnd: resizeBlockEndRipple(preview, anchor, tick, unit()); break;
         default: break;
     }
     repaint();
@@ -486,7 +503,7 @@ void GridComponent::commitGesture() {
         OpResult r;
         if (g == Gesture::Move) r = moveBlocks(p, sel, anchor, start, u);
         else if (g == Gesture::ResizeStart) r = resizeBlockStart(p, anchor, start, u);
-        else r = resizeBlockEnd(p, anchor, end, u);
+        else r = resizeBlockEndRipple(p, anchor, end, u);
         if (!r.ok) throw std::runtime_error(r.error);
     });
     dragging = false;

@@ -328,3 +328,11 @@ Not yet tested in Live. Core behaviour is unit-tested (voicing, dice, export, pe
 4. Drag the MIDI handle into an Ableton track: the dropped clip file carries the same name; drag twice in a row: both work.
 5. Save the Live set, reopen: the selected format is still there.
 6. Import an exported file in Live: the notes are identical whichever naming format was used; the clip info/text shows the progression lines.
+
+### Manual checklist: chord length and start on 1 (not yet tested in Live)
+1. Load the demo (four touching one-bar chords). Drag the right edge of the first chord to the right: it gets longer and the chords after it move later (nothing is overwritten). Drag it left: it shortens and a gap opens. Ctrl+Z undoes each drag in one step.
+2. Grab the line between two touching chords and drag: the left chord's right edge moves.
+3. Select a chord, click "Chord length" under the palette, pick "2 bars": the chord is two bars long and later chords shift. Select several chords and repeat: each gets that length. With nothing selected, the menu sets the length of newly inserted chords.
+4. Put the Live play cursor at bar 65 (or bar 3 beat 2.5), press space: the first chord sounds immediately and the pattern runs from there, repeating. Stop, move the cursor elsewhere, press space again: it starts on the first chord again.
+5. While playing, click a different place in Live's ruler: the pattern keeps its phase relative to where you originally pressed play (it does not jump back to chord 1).
+

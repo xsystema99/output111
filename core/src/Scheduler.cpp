@@ -41,11 +41,26 @@ const std::vector<ScheduledEvent>& PlaybackScheduler::process(const TransportBlo
     const double hostTick = tb.ppqStart * kTicksPerQuarter;
     const bool valid = tb.numSamples > 0 && std::isfinite(tb.sampleRate) && tb.sampleRate > 0.0 && std::isfinite(tb.bpm) &&
                        tb.bpm > 0.0 && std::isfinite(tb.ppqStart);
-    if (loopTicks_ <= 0 || !valid || !tb.playing || hostTick < 0.0) return processSegment(tb);
+    if (valid && !tb.playing) anchored_ = false;  // the next start sets a new anchor
+    if (loopTicks_ <= 0 || !valid || !tb.playing || hostTick < 0.0) {
+        if (valid && tb.playing && !anchored_) {  // started inside the count-in: bar 1 of the pattern is host position 0
+            anchor_ = 0.0;
+            anchored_ = true;
+        }
+        return processSegment(tb);
+    }
+
+    // "Start on 1": the pattern's first tick is wherever the transport started, so pressing play anywhere on the
+    // host timeline plays the first chord first. Locates while playing keep the anchor (the pattern stays in step).
+    if (!anchored_) {
+        anchor_ = hostTick;
+        anchored_ = true;
+    }
 
     const double length = static_cast<double>(loopTicks_);
     const double ticksPerSample = tb.bpm / 60.0 * kTicksPerQuarter / tb.sampleRate;
-    double position = std::fmod(hostTick, length);
+    double position = std::fmod(hostTick - anchor_, length);
+    if (position < 0.0) position += length;
     loopEvents_.clear();
     int done = 0;
     int guard = 0;
