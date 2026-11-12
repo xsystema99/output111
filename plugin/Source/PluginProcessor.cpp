@@ -214,18 +214,22 @@ void ChordSketchProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     previewRunning.store(preview.running());
     const chordcore::TransportBlock& used = step.overrides ? step.block : block;
 
-    double shownPpq = used.ppqStart;  // the playhead shows the position inside the looping pattern
-    const double loopPpq = loopLengthPpq.load(std::memory_order_relaxed);
-    if (!step.overrides && used.playing && loopPpq > 0.0 && shownPpq >= 0.0) shownPpq = std::fmod(shownPpq, loopPpq);
-    playheadPpq.store(shownPpq, std::memory_order_relaxed);
-    playheadPlaying.store(used.playing, std::memory_order_relaxed);
-    playheadValid.store(havePosition || step.overrides, std::memory_order_relaxed);
-
     for (const auto& e : scheduler.process(used)) {
         midi.addEvent(e.noteOn ? juce::MidiMessage::noteOn(e.channel + 1, e.pitch, (juce::uint8) e.velocity)
                                : juce::MidiMessage::noteOff(e.channel + 1, e.pitch, (juce::uint8) 0),
                       e.sampleOffset);
     }
+
+    // The playhead shows the position inside the looping pattern, folded by the scheduler itself (anchored where the
+    // transport started), so the grid always shows what is sounding.
+    double shownPpq = used.ppqStart;
+    if (!step.overrides && used.playing) {
+        shownPpq = scheduler.patternTick(used.ppqStart * static_cast<double>(chordcore::kTicksPerQuarter)) /
+                   static_cast<double>(chordcore::kTicksPerQuarter);
+    }
+    playheadPpq.store(shownPpq, std::memory_order_relaxed);
+    playheadPlaying.store(used.playing, std::memory_order_relaxed);
+    playheadValid.store(havePosition || step.overrides, std::memory_order_relaxed);
 }
 
 juce::AudioProcessorEditor* ChordSketchProcessor::createEditor() { return new ChordSketchEditor(*this); }

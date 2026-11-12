@@ -71,6 +71,12 @@ public:
     /// rate) produces no events and leaves the state untouched.
     const std::vector<ScheduledEvent>& process(const TransportBlock& block);
 
+    /// Where `hostTick` falls inside the pattern under the current anchor (the same fold process() uses), in ticks.
+    /// Meant to be called after process() for the same block so the anchor is set; the editor's playhead uses it so the
+    /// grid always shows what is sounding. Returns hostTick unchanged when there is no loop, no anchor yet, or for
+    /// negative positions (count-in).
+    double patternTick(double hostTick) const;
+
     /// Number of notes the scheduler currently considers sounding.
     std::size_t activeNoteCount() const;
 

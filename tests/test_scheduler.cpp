@@ -661,3 +661,20 @@ TEST_CASE("scheduler start-on-1: the pattern starts where the transport starts",
         CHECK(onPitches(s.process(blockAt(0.0))) == first);
     }
 }
+
+TEST_CASE("scheduler start-on-1: patternTick reports the anchored position (what the grid shows)", "[scheduler][loop][anchor]") {
+    const Progression p = makeDemoProgression();  // 4 bars, 15360 ticks
+    PlaybackScheduler s;
+    s.setNotes(generateNotes(p));
+    s.setLoopLength(p.lengthTicks());
+    const double bar55 = 54.0 * 4.0;  // host bar 55 (54 whole bars = 2 mod 4: the old bar-aligned fold showed chord 3)
+    s.process(blockAt(bar55));
+    CHECK(s.patternTick(bar55 * 960.0) == 0.0);                          // chord 1, not chord 3
+    CHECK(s.patternTick((bar55 + 4.0) * 960.0) == 3840.0);               // one bar later: chord 2
+    CHECK(s.patternTick((bar55 + 16.0) * 960.0) == 0.0);                 // wraps after the pattern
+    CHECK(s.patternTick((bar55 - 4.0) * 960.0) == 3.0 * 3840.0);         // before the anchor folds backwards
+    CHECK(s.patternTick(-960.0) == -960.0);                              // count-in is not folded
+    PlaybackScheduler fresh;
+    fresh.setLoopLength(p.lengthTicks());
+    CHECK(fresh.patternTick(5000.0) == 5000.0);                          // no anchor yet
+}

@@ -37,6 +37,14 @@ void PlaybackScheduler::setLoopLength(Tick loopTicks) {
     loopEvents_.reserve(notes_.size() * 6 + 64);
 }
 
+double PlaybackScheduler::patternTick(double hostTick) const {
+    if (loopTicks_ <= 0 || !anchored_ || !(hostTick >= 0.0)) return hostTick;
+    const double length = static_cast<double>(loopTicks_);
+    double position = std::fmod(hostTick - anchor_, length);
+    if (position < 0.0) position += length;
+    return position;
+}
+
 const std::vector<ScheduledEvent>& PlaybackScheduler::process(const TransportBlock& tb) {
     const double hostTick = tb.ppqStart * kTicksPerQuarter;
     const bool valid = tb.numSamples > 0 && std::isfinite(tb.sampleRate) && tb.sampleRate > 0.0 && std::isfinite(tb.bpm) &&
