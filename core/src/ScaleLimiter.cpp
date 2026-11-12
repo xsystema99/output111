@@ -44,12 +44,12 @@ int stepScalePitch(const Key& key, int pitch, int steps) {
     if (rows.empty()) return pitch;
     // First scale pitch at or above `pitch`.
     const auto it = std::lower_bound(rows.begin(), rows.end(), pitch);
-    long index = it - rows.begin();
+    std::ptrdiff_t index = it - rows.begin();  // not `long`: 32-bit on Windows
     const bool exact = it != rows.end() && *it == pitch;
-    long target;
+    std::ptrdiff_t target;
     if (exact) target = index + steps;
     else target = steps > 0 ? index + steps - 1 : index + steps;  // between two rows: the first step reaches the neighbour
-    target = std::clamp<long>(target, 0, static_cast<long>(rows.size()) - 1);
+    target = std::clamp<std::ptrdiff_t>(target, 0, static_cast<std::ptrdiff_t>(rows.size()) - 1);
     return rows[static_cast<std::size_t>(target)];
 }
 
