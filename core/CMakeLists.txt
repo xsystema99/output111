@@ -19,6 +19,7 @@ add_library(chordcore STATIC
     src/MelodyGenerator.cpp
     src/Voicing.cpp
     src/ChromaticDice.cpp
+    src/ScaleLimiter.cpp
     src/MidiFilename.cpp)
 
 target_include_directories(chordcore PUBLIC include)

@@ -29,6 +29,11 @@
 ///   click / Shift-click     select / toggle;  drag empty = rectangle select
 ///   drag a note             move in time and pitch (the selection moves together);  drag an edge = resize
 ///   Delete, Ctrl+D, Ctrl+C/V, Ctrl+A, arrows (Shift = octave / ...)   as in a piano roll
+///   1..7                    insert that scale degree (nearest octave to the selected note, inside the register)
+///
+/// Scale Limiter (Melody settings, default ON): rows are the project scale's pitches only, vertical drags and arrow keys
+/// move by scale degrees, out-of-scale notes are hidden and unselectable but stay in the melody (they play and export).
+/// OFF: all twelve rows, semitone editing.
 ///   wheel                   scroll pitch;  Shift+wheel scroll time;  Ctrl+wheel zoom time (shared with the grid)
 class MelodyRollComponent final : public juce::Component, private juce::Timer {
 public:
@@ -72,14 +77,23 @@ private:
         std::array<juce::Colour, 12> background;     // by pitch class
         std::array<bool, 12> chromatic{};
         juce::String chordName;
+        int hiddenChordTones = 0;  // chord tones with no row while the limiter is ON
     };
 
     void timerCallback() override;
     const chordcore::TimelineView& view() const { return grid.getView(); }
     chordcore::Tick unit() const { return grid.getSnapUnit(); }
     juce::Rectangle<float> laneBounds() const { return getLocalBounds().toFloat(); }
+    float rowHeight() const;
+    int visibleRowCount() const;
+    int rowOfPitch(int pitch) const;   ///< row index of a pitch, -1 when it has no row (hidden by the limiter)
+    int nearestRow(int pitch) const;
     int pitchAtY(float y) const;
     float yOfPitchTop(int pitch) const;
+    bool isHidden(const chordcore::MelodyNote&) const;
+    void rebuildRows();
+    void insertNoteAt(int pitch, chordcore::Tick cell);
+    void insertScaleDegree(int degree);
     juce::Rectangle<float> noteBounds(const chordcore::MelodyNote&) const;
     int noteAt(const chordcore::Progression&, juce::Point<float>) const;
     chordcore::Tick insertLength() const;
@@ -110,7 +124,12 @@ private:
     std::vector<std::size_t> previewSelection;
     std::vector<chordcore::MelodyNote> clipboard;
 
-    int lowPitch = 57;  // lowest visible pitch (bottom row)
+    // Rows: every scale pitch while the limiter is ON, every pitch while OFF. Scrolling is in rows.
+    std::vector<int> rowPitches;
+    std::array<int, 128> rowIndex{};
+    bool limiterOn = true;
+    bool gestureLimited = true;  // the limiter state when the current drag began
+    int lowRow = 0;  // bottom visible row
     bool pitchPlaced = false;
 
     Gesture gesture = Gesture::None;

@@ -336,3 +336,12 @@ Not yet tested in Live. Core behaviour is unit-tested (voicing, dice, export, pe
 4. Put the Live play cursor at bar 65 (or bar 3 beat 2.5), press space: the first chord sounds immediately and the pattern runs from there, repeating. Stop, move the cursor elsewhere, press space again: it starts on the first chord again.
 5. While playing, click a different place in Live's ruler: the pattern keeps its phase relative to where you originally pressed play (it does not jump back to chord 1).
 
+### Manual checklist: Scale Limiter (not yet tested in Live)
+1. Under the melody header there is a SCALE LIMITED switch (on by default). With it on, the piano roll shows only the project scale's rows (set the key to F minor: F G Ab Bb C Db Eb), taller than before. Click empty space: the note lands on a scale row.
+2. Drag a note up one row: it moves one scale degree (G4 to Ab4 in F minor). Select it and press Up / Down: same. Shift+Up: one octave. Press 3: an Ab appears in the octave nearest the selected note; keep pressing numbers to lay notes end to end.
+3. Click the switch (now CHROMATIC): all twelve rows appear; drag a note one row: one semitone. Add an A4 in F minor, then switch back to SCALE LIMITED: the A4 disappears, the line "1 chromatic note hidden - disable Scale Limiter to edit" shows, and playback still plays it. Switch off again: the A4 is back, unchanged. Export Melody MIDI with the limiter on: the A4 is in the file.
+4. With the limiter on, Select All (Ctrl+A) and Delete never touch the hidden A4. Copy notes while CHROMATIC, switch to SCALE LIMITED, paste: refused with a message if any copied note is out of scale.
+5. Use a Chromatic Dice chord (e.g. Fm in C major): with the limiter on there is no Ab row, F and C are highlighted, and the chord label says "+1 chromatic"; with it off the Ab row is shown and highlighted.
+6. Generate / Reroll / Regenerate with the limiter on at high tension over borrowed chords: every new note is in the scale. Turn it off: chromatic notes may appear again. Notes already there never change when you flip the switch.
+7. Save, close, reopen the project: the switch state and all notes come back. Undo after toggling the switch restores the previous mode.
+

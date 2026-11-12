@@ -37,6 +37,7 @@ add_executable(chordcore_tests
     test_voicing.cpp
     test_dice.cpp
     test_filename.cpp
+    test_scalelimiter.cpp
     test_midifile.cpp)
 target_include_directories(chordcore_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(chordcore_tests PRIVATE chordcore Catch2::Catch2WithMain)

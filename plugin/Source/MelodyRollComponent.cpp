@@ -4,6 +4,7 @@
 
 #include <chordcore/ChordEdit.h>
 #include <chordcore/Grid.h>
+#include <chordcore/ScaleLimiter.h>
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +14,8 @@ using namespace chordcore;
 
 namespace {
 
-constexpr float kRowHeight = 9.0f;
+constexpr float kChromaticRowHeight = 9.0f;  // twelve rows per octave
+constexpr float kScaleRowHeight = 12.0f;     // seven rows per octave: taller, like a scale-degree staff
 constexpr float kEdgeGrab = 6.0f;
 constexpr float kDragThreshold = 3.0f;
 
@@ -34,6 +36,7 @@ juce::Image makeHatch() {
 
 MelodyRollComponent::MelodyRollComponent(ChordSketchProcessor& p, GridComponent& g) : chordProcessor(p), grid(g), hatch(makeHatch()) {
     setWantsKeyboardFocus(true);
+    rebuildRows();  // valid rows before the first paint / project load
     startTimerHz(30);
 }
 
@@ -41,26 +44,58 @@ MelodyRollComponent::~MelodyRollComponent() = default;
 
 // ------------------------------------------------------------------------------------------ geometry
 
+float MelodyRollComponent::rowHeight() const { return limiterOn ? kScaleRowHeight : kChromaticRowHeight; }
+
+int MelodyRollComponent::visibleRowCount() const { return std::max(1, static_cast<int>(static_cast<float>(getHeight()) / rowHeight())); }
+
+int MelodyRollComponent::rowOfPitch(int pitch) const {
+    pitch = std::clamp(pitch, 0, 127);
+    return rowIndex[static_cast<std::size_t>(pitch)];
+}
+
+int MelodyRollComponent::nearestRow(int pitch) const {
+    pitch = std::clamp(pitch, 0, 127);
+    const auto it = std::lower_bound(rowPitches.begin(), rowPitches.end(), pitch);
+    if (it == rowPitches.end()) return static_cast<int>(rowPitches.size()) - 1;
+    return static_cast<int>(it - rowPitches.begin());
+}
+
 int MelodyRollComponent::pitchAtY(float y) const {
-    const int row = static_cast<int>(std::floor((static_cast<float>(getHeight()) - y) / kRowHeight));
-    return std::clamp(lowPitch + row, 0, 127);
+    const int row = static_cast<int>(std::floor((static_cast<float>(getHeight()) - y) / rowHeight()));
+    const int clamped = std::clamp(lowRow + row, 0, static_cast<int>(rowPitches.size()) - 1);
+    return rowPitches[static_cast<std::size_t>(clamped)];
 }
 
 float MelodyRollComponent::yOfPitchTop(int pitch) const {
-    return static_cast<float>(getHeight()) - static_cast<float>(pitch - lowPitch + 1) * kRowHeight;
+    const int row = rowOfPitch(pitch);
+    if (row < 0) return -100000.0f;  // a hidden (out-of-scale) pitch has no row
+    return static_cast<float>(getHeight()) - static_cast<float>(row - lowRow + 1) * rowHeight();
 }
+
+bool MelodyRollComponent::isHidden(const MelodyNote& n) const { return limiterOn && !pitchInScale(model.key, n.pitch); }
 
 juce::Rectangle<float> MelodyRollComponent::noteBounds(const MelodyNote& n) const {
     const auto x0 = static_cast<float>(view().tickToX(n.startTick));
     const auto x1 = static_cast<float>(view().tickToX(n.endTick()));
-    return {x0 + 0.5f, yOfPitchTop(n.pitch) + 1.0f, std::max(2.0f, x1 - x0 - 1.0f), kRowHeight - 2.0f};
+    return {x0 + 0.5f, yOfPitchTop(n.pitch) + 1.0f, std::max(2.0f, x1 - x0 - 1.0f), rowHeight() - 2.0f};
 }
 
 int MelodyRollComponent::noteAt(const Progression& p, juce::Point<float> pos) const {
     for (int i = static_cast<int>(p.melody.size()) - 1; i >= 0; --i) {
-        if (noteBounds(p.melody[static_cast<std::size_t>(i)]).expanded(0.0f, 0.5f).contains(pos)) return i;
+        const auto& n = p.melody[static_cast<std::size_t>(i)];
+        if (isHidden(n)) continue;  // hidden notes cannot be picked
+        if (noteBounds(n).expanded(0.0f, 0.5f).contains(pos)) return i;
     }
     return -1;
+}
+
+void MelodyRollComponent::rebuildRows() {
+    const int centre = rowPitches.empty() ? 66 : rowPitches[static_cast<std::size_t>(std::clamp(lowRow + visibleRowCount() / 2, 0, static_cast<int>(rowPitches.size()) - 1))];
+    rowPitches = visibleRowPitches(model.key, limiterOn);
+    rowIndex.fill(-1);
+    for (std::size_t i = 0; i < rowPitches.size(); ++i) rowIndex[static_cast<std::size_t>(rowPitches[i])] = static_cast<int>(i);
+    lowRow = nearestRow(centre) - visibleRowCount() / 2;  // keep the same pitch in the middle when the rows change
+    clampPitchScroll();
 }
 
 Tick MelodyRollComponent::insertLength() const { return std::clamp<Tick>(unit(), 240, 960); }
@@ -68,8 +103,7 @@ Tick MelodyRollComponent::insertLength() const { return std::clamp<Tick>(unit(),
 bool MelodyRollComponent::isSelected(std::size_t i) const { return std::find(selection.begin(), selection.end(), i) != selection.end(); }
 
 void MelodyRollComponent::clampPitchScroll() {
-    const int rows = std::max(1, static_cast<int>(static_cast<float>(getHeight()) / kRowHeight));
-    lowPitch = std::clamp(lowPitch, 0, std::max(0, 128 - rows));
+    lowRow = std::clamp(lowRow, 0, std::max(0, static_cast<int>(rowPitches.size()) - visibleRowCount()));
 }
 
 void MelodyRollComponent::resized() {
@@ -78,12 +112,16 @@ void MelodyRollComponent::resized() {
 }
 
 void MelodyRollComponent::ensureNotesVisible() {
-    const int rows = std::max(1, static_cast<int>(static_cast<float>(getHeight()) / kRowHeight));
-    if (model.melody.empty() || getHeight() <= 0) return;
+    if (getHeight() <= 0) return;
     long sum = 0;
-    for (const auto& n : model.melody) sum += n.pitch;
-    const int mean = static_cast<int>(sum / static_cast<long>(model.melody.size()));
-    lowPitch = mean - rows / 2;
+    long count = 0;
+    for (const auto& n : model.melody) {
+        if (isHidden(n)) continue;
+        sum += n.pitch;
+        ++count;
+    }
+    if (count == 0) return;
+    lowRow = nearestRow(static_cast<int>(sum / count)) - visibleRowCount() / 2;
     pitchPlaced = true;
     clampPitchScroll();
 }
@@ -91,9 +129,16 @@ void MelodyRollComponent::ensureNotesVisible() {
 // ------------------------------------------------------------------------------------------ model
 
 void MelodyRollComponent::setProgression(const Progression& p) {
+    const bool rowsChanged = rowPitches.empty() || p.melodySettings.scaleLimiter != limiterOn || p.key != model.key;
     model = p;
+    limiterOn = model.melodySettings.scaleLimiter;
+    if (rowsChanged) rebuildRows();
     if (!dragging) {
-        selection.erase(std::remove_if(selection.begin(), selection.end(), [&](std::size_t i) { return i >= model.melody.size(); }), selection.end());
+        // Indices that no longer exist are dropped; so are notes the limiter hides (their selection is suspended, the notes
+        // themselves are untouched) so that no editing command can reach a note the user cannot see.
+        selection.erase(std::remove_if(selection.begin(), selection.end(),
+                                       [&](std::size_t i) { return i >= model.melody.size() || isHidden(model.melody[i]); }),
+                        selection.end());
     }
     if (!pitchPlaced) ensureNotesVisible();
     rebuildPaintData();
@@ -121,6 +166,7 @@ void MelodyRollComponent::rebuildPaintData() {
         rp.end = region.endTick;
         fill(rp, region.chordMask);
         rp.chordName = juce::String(chordName(model.key, model.blocks[region.blockIndex].chord));
+        rp.hiddenChordTones = limiterOn ? chromaticChordToneCount(model.key, model.blocks[region.blockIndex].chord) : 0;
         regions.push_back(std::move(rp));
     }
     gapPaint = RegionPaint{};
@@ -164,14 +210,16 @@ void MelodyRollComponent::drawBackground(juce::Graphics& g) const {
     }
     push(cursor, last, &gapPaint);
 
-    const int rows = static_cast<int>(std::ceil(static_cast<float>(getHeight()) / kRowHeight));
+    const float rowH = rowHeight();
+    const int rows = static_cast<int>(std::ceil(static_cast<float>(getHeight()) / rowH));
     for (int row = 0; row < rows; ++row) {
-        const int pitch = lowPitch + row;
-        if (pitch > 127) break;
+        const int rowNumber = lowRow + row;
+        if (rowNumber >= static_cast<int>(rowPitches.size())) break;
+        const int pitch = rowPitches[static_cast<std::size_t>(rowNumber)];
         const int pc = pitch % 12;
         const float y = yOfPitchTop(pitch);
         for (const auto& s : segments) {
-            const juce::Rectangle<float> cell(s.x0, y, s.x1 - s.x0, kRowHeight);
+            const juce::Rectangle<float> cell(s.x0, y, s.x1 - s.x0, rowH);
             g.setColour(s.paint->background[static_cast<std::size_t>(pc)]);
             g.fillRect(cell);
             if (s.paint->chromatic[static_cast<std::size_t>(pc)]) {
@@ -180,16 +228,17 @@ void MelodyRollComponent::drawBackground(juce::Graphics& g) const {
             }
         }
         const bool black = pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
-        if (black) {
+        if (black && !limiterOn) {  // piano-key shading only means something with all twelve rows
             g.setColour(juce::Colours::black.withAlpha(0.16f));
-            g.fillRect(0.0f, y, width, kRowHeight);
+            g.fillRect(0.0f, y, width, rowH);
         }
-        g.setColour(juce::Colours::black.withAlpha(pc == 0 ? 0.7f : 0.3f));
-        g.fillRect(0.0f, y + kRowHeight - 1.0f, width, 1.0f);
-        if (pc == 0) {
+        const int labelPc = limiterOn ? model.key.tonic : 0;  // a row label per octave: the tonic when limited, C otherwise
+        g.setColour(juce::Colours::black.withAlpha(pc == labelPc ? 0.7f : 0.3f));
+        g.fillRect(0.0f, y + rowH - 1.0f, width, 1.0f);
+        if (pc == labelPc) {
             g.setColour(ui::mutedTextColour());
             g.setFont(ui::font(9.0f, true));
-            g.drawText(pitchName(model.key, pitch), 3, static_cast<int>(y), 28, static_cast<int>(kRowHeight), juce::Justification::centredLeft);
+            g.drawText(pitchName(model.key, pitch), 3, static_cast<int>(y), 28, static_cast<int>(rowH), juce::Justification::centredLeft);
         }
     }
 
@@ -200,7 +249,8 @@ void MelodyRollComponent::drawBackground(juce::Graphics& g) const {
         const auto x1 = static_cast<float>(view().tickToX(r.end));
         if (x1 < 0.0f || x0 > width || x1 - x0 < 30.0f) continue;
         g.setColour(juce::Colours::white.withAlpha(0.55f));
-        g.drawText(r.chordName, juce::Rectangle<float>(std::max(x0, 30.0f) + 3.0f, 1.0f, x1 - std::max(x0, 30.0f) - 4.0f, 12.0f), juce::Justification::centredLeft, true);
+        const auto label = r.hiddenChordTones > 0 ? r.chordName + "  +" + juce::String(r.hiddenChordTones) + " chromatic" : r.chordName;
+        g.drawText(label, juce::Rectangle<float>(std::max(x0, 30.0f) + 3.0f, 1.0f, x1 - std::max(x0, 30.0f) - 4.0f, 12.0f), juce::Justification::centredLeft, true);
         // exact chord boundary
         g.setColour(juce::Colours::white.withAlpha(0.35f));
         g.fillRect(x0 - 0.5f, 0.0f, 1.0f, static_cast<float>(getHeight()));
@@ -220,7 +270,8 @@ void MelodyRollComponent::drawGridLines(juce::Graphics& g) const {
 }
 
 void MelodyRollComponent::drawNote(juce::Graphics& g, const MelodyNote& n, bool selected, float alpha) const {
-    if (n.pitch < lowPitch || yOfPitchTop(n.pitch) < -kRowHeight) return;
+    if (isHidden(n)) return;  // Scale Limiter ON: out-of-scale notes are not drawn (they stay in the melody)
+    if (yOfPitchTop(n.pitch) < -rowHeight()) return;
     const auto r = noteBounds(n);
     if (r.getRight() < 0.0f || r.getX() > static_cast<float>(getWidth()) || r.getBottom() < 0.0f || r.getY() > static_cast<float>(getHeight())) return;
 
@@ -315,9 +366,7 @@ void MelodyRollComponent::setSelectionInternal(std::vector<std::size_t> indices,
 }
 
 void MelodyRollComponent::selectAll() {
-    std::vector<std::size_t> all(model.melody.size());
-    for (std::size_t i = 0; i < all.size(); ++i) all[i] = i;
-    setSelectionInternal(all, true);
+    setSelectionInternal(editableNoteIndices(model), true);  // hidden (out-of-scale) notes are not selectable while limited
 }
 
 int MelodyRollComponent::primaryVelocity() const {
@@ -374,6 +423,7 @@ void MelodyRollComponent::mouseDown(const juce::MouseEvent& e) {
         else gesture = Gesture::Move;
         grabOffset = view().xToTick(e.position.x) - n.startTick;
         grabPitch = n.pitch;
+        gestureLimited = limiterOn;
         lastAuditionedPitch = n.pitch;
         lastDesiredStart = n.startTick;
         lastPitchDelta = 0;
@@ -400,7 +450,7 @@ void MelodyRollComponent::mouseDrag(const juce::MouseEvent& e) {
         marquee = juce::Rectangle<float>(downPosition, e.position);
         std::vector<std::size_t> hits = selectionAtMarqueeStart;
         for (std::size_t i = 0; i < model.melody.size(); ++i) {
-            if (noteBounds(model.melody[i]).intersects(marquee)) hits.push_back(i);
+            if (!isHidden(model.melody[i]) && noteBounds(model.melody[i]).intersects(marquee)) hits.push_back(i);
         }
         std::sort(hits.begin(), hits.end());
         hits.erase(std::unique(hits.begin(), hits.end()), hits.end());
@@ -414,12 +464,16 @@ void MelodyRollComponent::mouseDrag(const juce::MouseEvent& e) {
     OpResult r;
     if (gesture == Gesture::Move) {
         const Tick desired = view().xToTick(e.position.x) - grabOffset;
-        const int delta = pitchAtY(e.position.y) - grabPitch;
-        r = moveMelodyNotes(trial, selection, anchor, desired, delta, u);
+        const int pitchHere = pitchAtY(e.position.y);
+        // Limiter ON: rows are scale degrees, so the vertical distance is counted in degrees; OFF: in semitones.
+        const int delta = gestureLimited ? rowOfPitch(pitchHere) - rowOfPitch(grabPitch) : pitchHere - grabPitch;
+        r = gestureLimited ? moveMelodyNotesByDegrees(trial, selection, anchor, desired, delta, u)
+                           : moveMelodyNotes(trial, selection, anchor, desired, delta, u);
         if (r.ok) {
             lastDesiredStart = desired;
             lastPitchDelta = delta;
-            const int shownPitch = model.melody[anchor].pitch + std::clamp(delta, -model.melody[anchor].pitch, 127 - model.melody[anchor].pitch);
+            const int shownPitch = gestureLimited ? stepScalePitch(model.key, model.melody[anchor].pitch, delta)
+                                                  : model.melody[anchor].pitch + std::clamp(delta, -model.melody[anchor].pitch, 127 - model.melody[anchor].pitch);
             if (shownPitch != lastAuditionedPitch) {
                 lastAuditionedPitch = shownPitch;
                 chordProcessor.auditionMelodyNote(shownPitch, model.melody[anchor].velocity);
@@ -447,11 +501,12 @@ void MelodyRollComponent::commitGesture() {
     const Gesture g = gesture;
     const Tick desired = lastDesiredStart, edge = lastDesiredEdge;
     const int delta = lastPitchDelta;
+    const bool limited = gestureLimited;
     std::vector<std::size_t> newSel;
     const auto result = chordProcessor.editProgression(
         g == Gesture::Move ? (sel.size() > 1 ? "Move notes" : "Move note") : "Resize note", [&](Progression& p) {
             OpResult r;
-            if (g == Gesture::Move) r = moveMelodyNotes(p, sel, anchor, desired, delta, u);
+            if (g == Gesture::Move) r = limited ? moveMelodyNotesByDegrees(p, sel, anchor, desired, delta, u) : moveMelodyNotes(p, sel, anchor, desired, delta, u);
             else if (g == Gesture::ResizeEnd) r = resizeMelodyNoteEnd(p, anchor, edge, u);
             else r = resizeMelodyNoteStart(p, anchor, edge, u);
             if (!r.ok) throw std::runtime_error(r.error);
@@ -474,21 +529,7 @@ void MelodyRollComponent::mouseUp(const juce::MouseEvent& e) {
     } else if (g == Gesture::Marquee && !wasDragging && !e.mods.isShiftDown()) {
         const Tick u = std::max<Tick>(unit(), 1);
         const Tick cell = (std::max<Tick>(view().xToTick(e.position.x), 0) / u) * u;
-        const int pitch = pitchAtY(e.position.y);
-        const Tick len = insertLength();
-        std::vector<std::size_t> added;
-        const auto result = chordProcessor.editProgression("Add note", [&](Progression& p) {
-            const auto r = addMelodyNote(p, pitch, cell, u, len);
-            if (!r.ok) throw std::runtime_error(r.error);
-            added = r.indices;
-        });
-        model = chordProcessor.getProgression();
-        if (result.ok) {
-            setSelectionInternal(added, true);
-            chordProcessor.auditionMelodyNote(pitch, 90);
-        } else {
-            report("Not added: " + juce::String(result.error));
-        }
+        insertNoteAt(pitchAtY(e.position.y), cell);
     }
     gesture = Gesture::None;
     dragging = false;
@@ -503,13 +544,55 @@ void MelodyRollComponent::mouseWheelMove(const juce::MouseEvent& e, const juce::
         return;
     }
     const float delta = std::abs(w.deltaY) > 1e-6f ? w.deltaY : w.deltaX;
-    lowPitch += static_cast<int>(std::lround(static_cast<double>(delta) * 12.0));
+    lowRow += static_cast<int>(std::lround(static_cast<double>(delta) * (limiterOn ? static_cast<double>(scaleDegreeCount(model.key)) : 12.0)));  // about an octave per notch
     pitchPlaced = true;
     clampPitchScroll();
     repaint();
 }
 
 // ------------------------------------------------------------------------------------------ commands
+
+void MelodyRollComponent::insertNoteAt(int pitch, Tick cell) {
+    if (limiterOn && !pitchInScale(model.key, pitch)) {
+        report("Scale Limiter is on: that pitch is outside the scale. Turn it off for chromatic notes.");
+        return;
+    }
+    const Tick u = std::max<Tick>(unit(), 1);
+    std::vector<std::size_t> added;
+    const auto result = chordProcessor.editProgression("Add note", [&](Progression& p) {
+        const auto r = addMelodyNote(p, pitch, cell, u, insertLength());
+        if (!r.ok) throw std::runtime_error(r.error);
+        added = r.indices;
+    });
+    model = chordProcessor.getProgression();
+    if (result.ok) {
+        setSelectionInternal(added, true);
+        chordProcessor.auditionMelodyNote(pitch, 90);
+    } else {
+        report("Not added: " + juce::String(result.error));
+    }
+}
+
+void MelodyRollComponent::insertScaleDegree(int degree) {
+    const auto& g = model.melodySettings.generator;  // the melodic register the generator also respects
+    // Smart Octave: the octave nearest the reference note (the selected note, else the middle of the register).
+    int reference = (g.registerLow + g.registerHigh) / 2;
+    Tick cell = 0;
+    if (!selection.empty() && selection.back() < model.melody.size()) {
+        const auto& last = model.melody[selection.back()];
+        reference = last.pitch;
+        cell = last.endTick();  // entering several keys in a row lays the notes end to end
+    } else if (hover.x >= 0.0f) {
+        const Tick u = std::max<Tick>(unit(), 1);
+        cell = (std::max<Tick>(view().xToTick(hover.x), 0) / u) * u;
+    }
+    const int pitch = pitchForScaleDegree(model.key, degree, reference, g.registerLow, g.registerHigh);
+    if (pitch < 0) {
+        report("Degree " + juce::String(degree) + " is not available (the scale has " + juce::String(scaleDegreeCount(model.key)) + " notes, or none in the register).");
+        return;
+    }
+    insertNoteAt(pitch, cell);
+}
 
 void MelodyRollComponent::editSelection(const std::string& label,
                                         const std::function<OpResult(Progression&, const std::vector<std::size_t>&)>& op, bool selectResult) {
@@ -542,6 +625,10 @@ void MelodyRollComponent::copySelection() {
 void MelodyRollComponent::pasteAt(Tick tick) {
     if (clipboard.empty()) { report("Nothing copied yet: select notes and press Ctrl+C"); return; }
     const auto clip = clipboard;
+    if (limiterOn && std::any_of(clip.begin(), clip.end(), [&](const MelodyNote& n) { return !pitchInScale(model.key, n.pitch); })) {
+        report("The copied notes include out-of-scale pitches: turn off Scale Limiter to paste them.");
+        return;
+    }
     const Tick u = unit();
     std::vector<std::size_t> out;
     const auto result = chordProcessor.editProgression("Paste notes", [&](Progression& p) {
@@ -592,6 +679,10 @@ bool MelodyRollComponent::keyPressed(const juce::KeyPress& key) {
         }
         return false;
     }
+    if (!mods.isAnyModifierKeyDown() && code >= '1' && code <= '9') {  // number keys: scale degrees (Smart Octave)
+        insertScaleDegree(code - '0');
+        return true;
+    }
     if (selection.empty()) return false;
     int pitchDelta = 0;
     Tick timeDelta = 0;
@@ -604,8 +695,14 @@ bool MelodyRollComponent::keyPressed(const juce::KeyPress& key) {
     const auto anchor = sel.front();
     if (anchor >= model.melody.size()) return true;
     const Tick target = model.melody[anchor].startTick + timeDelta;
+    // Limiter ON: arrows move by scale degrees (Shift = one octave of degrees); OFF: by semitones (Shift = 12).
+    const bool limited = limiterOn;
+    const int degrees = limited ? (std::abs(pitchDelta) == 12 ? (pitchDelta > 0 ? 1 : -1) * scaleDegreeCount(model.key) : pitchDelta) : 0;
     editSelection(pitchDelta != 0 ? "Transpose notes" : "Nudge notes",
-                  [=](Progression& p, const std::vector<std::size_t>& s) { return moveMelodyNotes(p, s, anchor, target, pitchDelta, 1); }, true);
+                  [=](Progression& p, const std::vector<std::size_t>& s) {
+                      return limited ? moveMelodyNotesByDegrees(p, s, anchor, target, degrees, 1) : moveMelodyNotes(p, s, anchor, target, pitchDelta, 1);
+                  },
+                  true);
     if (pitchDelta != 0 && !selection.empty() && selection.front() < model.melody.size()) {
         chordProcessor.auditionMelodyNote(model.melody[selection.front()].pitch, model.melody[selection.front()].velocity);
     }

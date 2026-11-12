@@ -67,6 +67,7 @@ private:
     void writeMidiTo(const juce::File& file, const chordcore::ProjectExportOptions& options);
     void chooseExportFile(const chordcore::ProjectExportOptions& options, chordcore::MidiFilenameFormat format);
     void muteChanged();
+    void scaleLimiterChanged();
     void openGenerator();
     void runGenerator(int action);  ///< 0 generate, 1 reroll, 2 selected region, 3 whole project, 4 affected chords
     void currentSpan(int& startBar, chordcore::Tick& from, chordcore::Tick& to) const;
@@ -106,6 +107,8 @@ private:
     ui::StyledButton muteChordsButton{"Mute chords", ui::StyledButton::Look::Pill, 12.0f};
     ui::StyledButton muteMelodyButton{"Mute melody", ui::StyledButton::Look::Pill, 12.0f};
     ui::StyledButton lockButton{"Lock", ui::StyledButton::Look::Outline, 13.0f};
+    ui::StyledButton scaleLimiterButton{"SCALE LIMITED", ui::StyledButton::Look::Pill, 12.0f};
+    juce::Label hiddenNotesLabel;
     MelodyRollComponent roll;
 
     // palette

@@ -135,6 +135,7 @@ std::vector<MelodyNote> generateMelodyForRange(const Progression& p, const Gener
 
     const auto regions = buildCompatibility(p);
     const std::uint16_t scaleMask = scalePitchClassMask(p.key);
+    const bool limiter = p.melodySettings.scaleLimiter;  // new notes stay in the project scale
 
     // Existing notes overlapping the range are obstacles (time) and context (pitch).
     std::vector<const MelodyNote*> kept;
@@ -315,6 +316,7 @@ std::vector<MelodyNote> generateMelodyForRange(const Progression& p, const Gener
 
         int bestPitch = low;
         double bestScore = -1e18;
+        bool found = false;
         const int motifInterval = noteInBar < previousBarIntervals.size() ? previousBarIntervals[noteInBar] : 9999;
 
         // The jitter is drawn once per candidate in a fixed order, so results do not depend on early exits.
@@ -322,7 +324,8 @@ std::vector<MelodyNote> generateMelodyForRange(const Progression& p, const Gener
             const int pc = mod12(pitch);
             const bool chordTone = ((chordMask >> pc) & 1u) != 0;
             const bool scaleTone = ((scaleMask >> pc) & 1u) != 0;
-            double score = rng.unit() * 1.2;
+            double score = rng.unit() * 1.2;  // drawn for every candidate, in order, so the limiter below changes no other draw
+            if (limiter && !scaleTone) continue;  // Scale Limiter ON takes precedence over tension, borrowed chords and Dice
 
             if (chordTone) score += onset.strength == 3 ? 9.0 : onset.strength == 2 ? 7.0 : onset.strength == 1 ? 5.0 : 3.0;
             else if (scaleTone) score += onset.strength >= 2 ? 0.5 : 2.5;
@@ -357,8 +360,10 @@ std::vector<MelodyNote> generateMelodyForRange(const Progression& p, const Gener
             if (score > bestScore) {
                 bestScore = score;
                 bestPitch = pitch;
+                found = true;
             }
         }
+        if (limiter && !found) continue;  // no scale pitch in the register: leave the onset empty rather than break the limiter
 
         // Velocity: accents on strong beats, a softer phrase end, a little seeded variation.
         int velocity = 88 + (onset.strength == 3 ? 12 : onset.strength == 2 ? 6 : onset.strength == 0 ? -6 : 0) -

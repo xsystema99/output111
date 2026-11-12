@@ -556,6 +556,7 @@ std::string serializeProgression(const Progression& p) {
         if (m.melodyChannel != d.melodyChannel) add("\"melodyChannel\":" + std::to_string(m.melodyChannel));
         if (m.muteChords) add("\"muteChords\":true");
         if (m.muteMelody) add("\"muteMelody\":true");
+        if (!m.scaleLimiter) add("\"scaleLimiter\":false");  // ON is the default: absent = ON, so older projects load unchanged
         if (m.generator != d.generator) {
             const auto& g = m.generator;
             const auto& dg = d.generator;
@@ -718,7 +719,8 @@ DeserializeResult deserializeProgression(std::string_view text) {
             !r.narrowInt(*ms, "$.melodySettings", "chordChannel", s.chordChannel, false) ||
             !r.narrowInt(*ms, "$.melodySettings", "melodyChannel", s.melodyChannel, false) ||
             !r.boolean(*ms, "$.melodySettings", "muteChords", s.muteChords, false) ||
-            !r.boolean(*ms, "$.melodySettings", "muteMelody", s.muteMelody, false)) {
+            !r.boolean(*ms, "$.melodySettings", "muteMelody", s.muteMelody, false) ||
+            !r.boolean(*ms, "$.melodySettings", "scaleLimiter", s.scaleLimiter, false)) {
             return fail(r.error);
         }
         if (const Json* gen = r.member(*ms, "$.melodySettings", "generator", /*required=*/false)) {

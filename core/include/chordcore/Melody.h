@@ -80,12 +80,13 @@ struct MelodySettings {
     int melodyChannel = 2;  ///< MIDI channel (1..16) used by melody notes
     bool muteChords = false;
     bool muteMelody = false;
+    bool scaleLimiter = true;  ///< ON: the melody editor and generator use the project scale only (see ScaleLimiter.h)
     GeneratorSettings generator;
 };
 
 inline bool operator==(const MelodySettings& a, const MelodySettings& b) noexcept {
     return a.mapping == b.mapping && a.palette == b.palette && a.labels == b.labels && a.chordChannel == b.chordChannel &&
-           a.melodyChannel == b.melodyChannel && a.muteChords == b.muteChords && a.muteMelody == b.muteMelody && a.generator == b.generator;
+           a.melodyChannel == b.melodyChannel && a.muteChords == b.muteChords && a.muteMelody == b.muteMelody && a.scaleLimiter == b.scaleLimiter && a.generator == b.generator;
 }
 inline bool operator!=(const MelodySettings& a, const MelodySettings& b) noexcept { return !(a == b); }
 

@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+#include <chordcore/ScaleLimiter.h>
+
 #include <chordcore/ChordEdit.h>
 #include <chordcore/MelodyGenerator.h>
 #include <chordcore/NoteEngine.h>
@@ -46,7 +48,7 @@ juce::String lengthText(Tick ticks, Tick bar) {
     return juce::String(beats, 2) + " beats";
 }
 
-constexpr int kBaseWidth = 640, kBaseHeight = 1016;  // the smallest size: the layout below is tuned for it
+constexpr int kBaseWidth = 640, kBaseHeight = 1042;  // the smallest size: the layout below is tuned for it
 
 }  // namespace
 
@@ -169,6 +171,15 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     muteMelodyButton.setTooltip("Silence the melody in playback (channel 2). Exports are not affected.");
     addAndMakeVisible(muteChordsButton);
     addAndMakeVisible(muteMelodyButton);
+    scaleLimiterButton.setClickingTogglesState(true);
+    scaleLimiterButton.onClick = [this] { scaleLimiterChanged(); };
+    scaleLimiterButton.setTooltip("SCALE LIMITED: the roll shows only the project scale; new notes, dragging, arrow keys and the generator stay in the scale. "
+                                  "CHROMATIC: all twelve pitches and semitone editing. Notes already in the melody are never changed, hidden or not: "
+                                  "they still play and export. Keys 1-7 insert that scale degree.");
+    styleLabel(hiddenNotesLabel, 11.0f, false, ui::mutedTextColour());
+    hiddenNotesLabel.setTooltip("Notes outside the scale are hidden while Scale Limiter is on. They still play and export; turn the limiter off to edit them.");
+    addAndMakeVisible(scaleLimiterButton);
+    addAndMakeVisible(hiddenNotesLabel);
     generateButton.onClick = [this] { openGenerator(); };
     addAndMakeVisible(generateButton);
     lockButton.setEnabled(false);
@@ -454,6 +465,11 @@ void ChordSketchEditor::resized() {
     melodyHeader.removeFromRight(6);
     muteChordsButton.setBounds(melodyHeader.removeFromRight(88));
     area.removeFromTop(4);
+    auto limiterRow = area.removeFromTop(22);
+    scaleLimiterButton.setBounds(limiterRow.removeFromLeft(132));
+    limiterRow.removeFromLeft(8);
+    hiddenNotesLabel.setBounds(limiterRow);
+    area.removeFromTop(4);
     roll.setBounds(area.removeFromTop(172));
     area.removeFromTop(4);
     auto melodyFooter = area.removeFromTop(26);
@@ -575,6 +591,18 @@ void ChordSketchEditor::refreshFromModel() {
     labelsBox.setSelectedId(static_cast<int>(model.melodySettings.labels) + 1, juce::dontSendNotification);
     muteChordsButton.setToggleState(model.melodySettings.muteChords, juce::dontSendNotification);
     muteMelodyButton.setToggleState(model.melodySettings.muteMelody, juce::dontSendNotification);
+    {
+        const bool limited = model.melodySettings.scaleLimiter;
+        scaleLimiterButton.setToggleState(limited, juce::dontSendNotification);
+        scaleLimiterButton.setButtonText(limited ? "SCALE LIMITED" : "CHROMATIC");
+        const int hidden = limited ? chordcore::outOfScaleNoteCount(model) : 0;
+        juce::String hiddenText;
+        if (hidden > 0) {
+            hiddenText = juce::String(hidden) + (hidden == 1 ? " chromatic note hidden " : " chromatic notes hidden ") +
+                         juce::String::fromUTF8("\xE2\x80\x94") + " disable Scale Limiter to edit";
+        }
+        hiddenNotesLabel.setText(hiddenText, juce::dontSendNotification);
+    }
     melodySelectionChanged();
     selected = timeline.getPrimary();
     inspector.setModel(model, timeline.getSelection(), selected);
@@ -751,6 +779,13 @@ void ChordSketchEditor::muteChanged() {
         p.melodySettings.muteMelody = melody;
     });
     if (!result.ok) setStatus("Could not change the mute: " + juce::String(result.error));
+}
+
+void ChordSketchEditor::scaleLimiterChanged() {
+    const bool limited = scaleLimiterButton.getToggleState();
+    // A project setting like the mute buttons (one small undo step); it never touches a note.
+    const auto result = chordProcessor.editProgression("Scale Limiter", [=](Progression& p) { p.melodySettings.scaleLimiter = limited; });
+    if (!result.ok) setStatus("Could not change the Scale Limiter: " + juce::String(result.error));
 }
 
 void ChordSketchEditor::melodySettingsChanged() {
