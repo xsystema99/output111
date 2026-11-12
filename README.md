@@ -329,7 +329,7 @@ Not yet tested in Live. Core behaviour is unit-tested (voicing, dice, export, pe
 5. Save the Live set, reopen: the selected format is still there.
 6. Import an exported file in Live: the notes are identical whichever naming format was used; the clip info/text shows the progression lines.
 
-### Manual checklist: chord length and start on 1 (not yet tested in Live)
+### Manual checklist: chord length and start on 1 (user reported "works great" on the latest build, no per-step detail given)
 1. Load the demo (four touching one-bar chords). Drag the right edge of the first chord to the right: it gets longer and the chords after it move later (nothing is overwritten). Drag it left: it shortens and a gap opens. Ctrl+Z undoes each drag in one step.
 2. Grab the line between two touching chords and drag: the left chord's right edge moves.
 3. Select a chord, click "Chord length" under the palette, pick "2 bars": the chord is two bars long and later chords shift. Select several chords and repeat: each gets that length. With nothing selected, the menu sets the length of newly inserted chords.

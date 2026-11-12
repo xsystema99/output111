@@ -292,3 +292,4 @@ Advanced features (M2+) are intentionally not started until M1's export has been
 - Looked at, left alone: UI timers are 15-30 Hz and repaint only when the playhead moved; mouse-drag previews copy the progression (about 1 us); clang-tidy's remaining performance hints (enum sizes, push_back inside tiny loops) are noise at these sizes.
 - Known real-time caveat, unchanged: `MidiBuffer::addEvent` may allocate inside the host's buffer when it is full; the scheduler's event buffers are reserved from the note count, which holds unless the pattern loop is shorter than one audio block.
 
+- User report (Live, latest build): "Works great" for the start-on-1 / playhead fix, given without per-step detail; the chord-length drag and button were not itemised separately.
