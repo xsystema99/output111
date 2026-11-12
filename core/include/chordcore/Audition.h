@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
 #include <chordcore/Scheduler.h>
@@ -18,19 +19,28 @@ namespace chordcore {
 /// Not thread-safe: the owner serialises calls (the plugin does it with a lock).
 class AuditionPlayer {
 public:
-    explicit AuditionPlayer(double holdSeconds = 0.8) : hold(holdSeconds) {}
+    explicit AuditionPlayer(double holdSeconds = 0.8) : hold(holdSeconds) {
+        events.reserve(kMaxEvents);
+        active.reserve(kMaxVoices);
+    }
 
     void request(std::vector<int> pitches, int velocity, int channel);
     void stopAll();
     void reset();
 
-    /// Events for the next block of `numSamples` at `sampleRate`.
-    std::vector<ScheduledEvent> process(int numSamples, double sampleRate);
+    /// Events for the next block of `numSamples` at `sampleRate`. The reference stays valid until the next call. Never
+    /// allocates once request() has run (the buffers are sized for the maximum of 128 voices), so it is safe to call
+    /// from the audio thread.
+    const std::vector<ScheduledEvent>& process(int numSamples, double sampleRate);
 
     bool sounding() const noexcept { return !active.empty(); }
 
 private:
     struct Voice { int pitch; int channel; };
+    static constexpr std::size_t kMaxVoices = 128;          // one per MIDI pitch (duplicates are removed)
+    static constexpr std::size_t kMaxEvents = 2 * kMaxVoices + 8;  // releases of the old chord + note-ons of the new one
+
+    std::vector<ScheduledEvent> events;
 
     double hold;
     bool havePending = false;

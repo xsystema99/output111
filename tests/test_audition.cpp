@@ -125,3 +125,20 @@ TEST_CASE("audition: a release never precedes its note-on, even with one-sample 
     CHECK(ev[0].sampleOffset == 0);
     CHECK(t.sounding() == 0);
 }
+
+TEST_CASE("audition: process() reuses its buffer (no allocation on the audio thread)", "[audition][realtime]") {
+    AuditionPlayer a(0.05);
+    std::vector<int> all;
+    for (int p = 0; p < 128; ++p) all.push_back(p);
+    a.request(all, 90, 0);
+    const auto* first = &a.process(64, 48000.0);
+    const auto* data = first->data();
+    CHECK(first->size() == 128);
+    a.request(all, 90, 1);  // the biggest case: 128 releases then 128 note-ons
+    const auto& second = a.process(64, 48000.0);
+    CHECK(&second == first);
+    CHECK(second.data() == data);  // same storage: nothing was reallocated
+    CHECK(second.size() == 256);
+    for (int i = 0; i < 20; ++i) a.process(64, 48000.0);
+    CHECK(a.process(64, 48000.0).data() == data);
+}

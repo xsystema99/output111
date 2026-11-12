@@ -57,7 +57,7 @@ bool validIndices(const Progression& p, const std::vector<std::size_t>& indices,
 
 int clampVelocity(int v) { return std::max(1, std::min(127, v)); }
 
-OpResult commitAdded(Progression& p, std::vector<MelodyNote> added, const Progression& original) {
+OpResult commitAdded(Progression& p, const std::vector<MelodyNote>& added, const Progression& original) {
     // `added` were appended to p.melody (positions original.size()..); re-sort and report the new positions.
     (void)original;
     std::vector<std::size_t> tracked;
@@ -207,7 +207,7 @@ OpResult deleteMelodyNotes(Progression& p, const std::vector<std::size_t>& indic
 
 namespace {
 
-OpResult appendGroup(Progression& p, std::vector<MelodyNote> group, Tick shift) {
+OpResult appendGroup(Progression& p, const std::vector<MelodyNote>& group, Tick shift) {
     if (group.empty()) return fail("nothing to paste");
     if (p.melody.size() + group.size() > static_cast<std::size_t>(kMaxMelodyNotes)) return fail("the melody lane is full");
     const Tick limit = maxEndTick(p.timeSignature);

@@ -131,7 +131,6 @@ private:
     chordcore::PreviewTransport preview;  // guarded by schedulerLock (audio thread)
     std::atomic<bool> previewRequested{false};
     std::atomic<bool> previewRunning{false};
-    std::atomic<double> loopLengthPpq{0.0};  // pattern length in quarter notes (the transport loops it), written under documentLock
     std::atomic<double> previewEndPpq{0.0};  // end of the last chord in quarter notes, written under documentLock
 
     juce::SpinLock auditionLock;

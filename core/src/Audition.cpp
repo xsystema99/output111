@@ -25,8 +25,8 @@ void AuditionPlayer::reset() {
     remainingSamples = 0.0;
 }
 
-std::vector<ScheduledEvent> AuditionPlayer::process(int numSamples, double sampleRate) {
-    std::vector<ScheduledEvent> events;
+const std::vector<ScheduledEvent>& AuditionPlayer::process(int numSamples, double sampleRate) {
+    events.clear();
     const auto releaseAll = [&](int offset) {
         for (const auto& v : active) events.push_back({offset, false, v.pitch, 0, v.channel});
         active.clear();
@@ -39,10 +39,11 @@ std::vector<ScheduledEvent> AuditionPlayer::process(int numSamples, double sampl
     }
     if (havePending) {
         releaseAll(0);  // a new chord replaces the old one
-        std::vector<int> pitches = pendingPitches;
+        auto& pitches = pendingPitches;  // sorted in place: it is cleared below, so no copy (and no allocation)
         std::sort(pitches.begin(), pitches.end());
         pitches.erase(std::unique(pitches.begin(), pitches.end()), pitches.end());
         for (int p : pitches) {
+            if (active.size() >= kMaxVoices) break;
             if (p < 0 || p > 127) continue;
             events.push_back({0, true, p, pendingVelocity, pendingChannel});
             active.push_back({p, pendingChannel});

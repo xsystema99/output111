@@ -21,7 +21,6 @@ ChordSketchProcessor::ChordSketchProcessor()
 void ChordSketchProcessor::rebuildPlaybackLocked() {
     const auto& current = document.progression();
     fallbackTempo.store(current.tempoBpm);
-    loopLengthPpq.store(static_cast<double>(current.lengthTicks()) / static_cast<double>(chordcore::kTicksPerQuarter));
     previewEndPpq.store(static_cast<double>(std::max(current.endTick(), current.melodyEndTick())) / static_cast<double>(chordcore::kTicksPerQuarter));
 
     std::vector<chordcore::NoteEvent> notes;
