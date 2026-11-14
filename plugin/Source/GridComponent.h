@@ -42,6 +42,7 @@ public:
     void setInsertChord(const chordcore::ChordSpec& chord) { insertChord = chord; }
     void setInsertDuration(chordcore::Tick ticks) { insertDuration = ticks; }
     void fitToWindow();
+    void zoomBy(double factor);  ///< >1 zooms in around the middle of the lane
 
     /// The shared time view (the melody piano roll draws with exactly this origin and zoom) and snap unit.
     const chordcore::TimelineView& getView() const noexcept { return currentView; }

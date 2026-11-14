@@ -14,9 +14,9 @@ using namespace chordcore;
 
 namespace {
 
-constexpr float kChromaticRowHeight = 9.0f;  // twelve rows per octave
-constexpr float kScaleRowHeight = 12.0f;     // seven rows per octave: taller, like a scale-degree staff
-constexpr float kEdgeGrab = 6.0f;
+constexpr float kChromaticRowHeight = 13.0f;  // twelve rows per octave
+constexpr float kScaleRowHeight = 19.0f;      // seven rows per octave: taller, like a scale-degree staff
+constexpr float kEdgeGrab = 9.0f;  // note start/end handles (wide enough for a sixteenth note)
 constexpr float kDragThreshold = 3.0f;
 
 juce::Colour toColour(const Rgb& c) { return juce::Colour(c.r, c.g, c.b); }
@@ -77,7 +77,7 @@ bool MelodyRollComponent::isHidden(const MelodyNote& n) const { return limiterOn
 juce::Rectangle<float> MelodyRollComponent::noteBounds(const MelodyNote& n) const {
     const auto x0 = static_cast<float>(view().tickToX(n.startTick));
     const auto x1 = static_cast<float>(view().tickToX(n.endTick()));
-    return {x0 + 0.5f, yOfPitchTop(n.pitch) + 1.0f, std::max(2.0f, x1 - x0 - 1.0f), rowHeight() - 2.0f};
+    return {x0 + 0.5f, yOfPitchTop(n.pitch) + 1.0f, std::max(4.0f, x1 - x0 - 1.0f), rowHeight() - 2.0f};
 }
 
 int MelodyRollComponent::noteAt(const Progression& p, juce::Point<float> pos) const {
@@ -384,7 +384,7 @@ void MelodyRollComponent::mouseMove(const juce::MouseEvent& e) {
     const int hit = noteAt(model, e.position);
     if (hit >= 0) {
         const auto r = noteBounds(model.melody[static_cast<std::size_t>(hit)]);
-        const bool edge = r.getWidth() > 16.0f && (e.position.x - r.getX() < kEdgeGrab || r.getRight() - e.position.x < kEdgeGrab);
+        const bool edge = r.getWidth() > 22.0f && (e.position.x - r.getX() < kEdgeGrab || r.getRight() - e.position.x < kEdgeGrab);
         setMouseCursor(edge ? juce::MouseCursor::LeftRightResizeCursor : juce::MouseCursor::DraggingHandCursor);
     } else {
         setMouseCursor(juce::MouseCursor::NormalCursor);
@@ -418,8 +418,8 @@ void MelodyRollComponent::mouseDown(const juce::MouseEvent& e) {
             setSelectionInternal({idx}, true);
         }
         const auto r = noteBounds(n);
-        if (r.getWidth() > 16.0f && e.position.x - r.getX() < kEdgeGrab) gesture = Gesture::ResizeStart;
-        else if (r.getWidth() > 16.0f && r.getRight() - e.position.x < kEdgeGrab) gesture = Gesture::ResizeEnd;
+        if (r.getWidth() > 22.0f && e.position.x - r.getX() < kEdgeGrab) gesture = Gesture::ResizeStart;
+        else if (r.getWidth() > 22.0f && r.getRight() - e.position.x < kEdgeGrab) gesture = Gesture::ResizeEnd;
         else gesture = Gesture::Move;
         grabOffset = view().xToTick(e.position.x) - n.startTick;
         grabPitch = n.pitch;

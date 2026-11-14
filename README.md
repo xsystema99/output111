@@ -345,3 +345,8 @@ Not yet tested in Live. Core behaviour is unit-tested (voicing, dice, export, pe
 6. Generate / Reroll / Regenerate with the limiter on at high tension over borrowed chords: every new note is in the scale. Turn it off: chromatic notes may appear again. Notes already there never change when you flip the switch.
 7. Save, close, reopen the project: the switch state and all notes come back. Undo after toggling the switch restores the previous mode.
 
+### Manual checklist: output selector and bigger roll (not yet tested in Live)
+1. In the melody header, "Output: Chords | Melody | Both". Click Chords: only chords sound (melody silent); Melody: only melody; Both: both. Reopen the project: the selection is remembered. Exports are unaffected.
+2. Open the plugin on a wide monitor: the window opens wide (about 60 % of the display width). Press Fit, then zoom with the - / + buttons next to Fit or Ctrl + wheel: with a 1/16 snap, sixteenth-note cells are wide enough to click, and a sixteenth note can be resized by its end handle.
+3. Melody rows are taller; drag the window's bottom-right corner to make it taller: the extra height goes mainly to the melody roll.
+

@@ -103,6 +103,10 @@ void GridComponent::fitToWindow() {
     applyView(fitView(model, laneWidth()), false);
 }
 
+void GridComponent::zoomBy(double factor) {
+    applyView(zoomView(currentView, laneWidth() * 0.5, factor, extent(), laneWidth()), true);
+}
+
 void GridComponent::resized() {
     scrollBar.setBounds(0, getHeight() - kScrollBarHeight, getWidth(), kScrollBarHeight);
     if (userZoomed) applyView(currentView, false);

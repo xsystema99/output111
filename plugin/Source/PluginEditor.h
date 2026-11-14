@@ -66,7 +66,7 @@ private:
     void exportMidiClicked();
     void writeMidiTo(const juce::File& file, const chordcore::ProjectExportOptions& options);
     void chooseExportFile(const chordcore::ProjectExportOptions& options, chordcore::MidiFilenameFormat format);
-    void muteChanged();
+    void outputChanged();
     void scaleLimiterChanged();
     void openGenerator();
     void runGenerator(int action);  ///< 0 generate, 1 reroll, 2 selected region, 3 whole project, 4 affected chords
@@ -96,6 +96,8 @@ private:
     juce::Label timelineCaption{{}, "Chord grid"}, timelineHint;
     juce::ComboBox snapBox, insertLengthBox;
     ui::StyledButton fitButton{"Fit", ui::StyledButton::Look::Outline, 13.0f};
+    ui::StyledButton zoomOutButton{"-", ui::StyledButton::Look::Outline, 15.0f};
+    ui::StyledButton zoomInButton{"+", ui::StyledButton::Look::Outline, 15.0f};
     GridComponent timeline;
 
     // melody piano roll
@@ -104,8 +106,11 @@ private:
     juce::Slider velocitySlider;
     ui::StyledButton generateButton{"Generate...", ui::StyledButton::Look::Primary, 13.0f};
     juce::Component::SafePointer<GeneratorPanel> generatorPanel;
-    ui::StyledButton muteChordsButton{"Mute chords", ui::StyledButton::Look::Pill, 12.0f};
-    ui::StyledButton muteMelodyButton{"Mute melody", ui::StyledButton::Look::Pill, 12.0f};
+    // What the plugin sends to the host (playback only; exports are chosen in the export dialog): one of three.
+    juce::Label outputCaption;
+    ui::StyledButton outputChordsButton{"Chords", ui::StyledButton::Look::Pill, 13.0f};
+    ui::StyledButton outputMelodyButton{"Melody", ui::StyledButton::Look::Pill, 13.0f};
+    ui::StyledButton outputBothButton{"Both", ui::StyledButton::Look::Pill, 13.0f};
     ui::StyledButton lockButton{"Lock", ui::StyledButton::Look::Outline, 13.0f};
     ui::StyledButton scaleLimiterButton{"SCALE LIMITED", ui::StyledButton::Look::Pill, 12.0f};
     juce::Label hiddenNotesLabel;

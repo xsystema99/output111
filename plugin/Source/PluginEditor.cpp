@@ -48,7 +48,7 @@ juce::String lengthText(Tick ticks, Tick bar) {
     return juce::String(beats, 2) + " beats";
 }
 
-constexpr int kBaseWidth = 640, kBaseHeight = 1042;  // the smallest size: the layout below is tuned for it
+constexpr int kBaseWidth = 720, kBaseHeight = 1090;  // the smallest size: the layout below is tuned for it
 
 }  // namespace
 
@@ -126,6 +126,12 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
         timeline.setInsertDuration(id == 5 ? model.timeSignature.ticksPerBar() : lengths[id - 1]);
     };
     fitButton.onClick = [this] { timeline.fitToWindow(); };
+    zoomOutButton.onClick = [this] { timeline.zoomBy(1.0 / 1.5); };
+    zoomInButton.onClick = [this] { timeline.zoomBy(1.5); };
+    zoomOutButton.setTooltip("Zoom out (also Ctrl + mouse wheel)");
+    zoomInButton.setTooltip("Zoom in: sixteenth notes get wider (also Ctrl + mouse wheel)");
+    addAndMakeVisible(zoomOutButton);
+    addAndMakeVisible(zoomInButton);
     for (auto* c : std::initializer_list<juce::Component*>{&snapBox, &insertLengthBox, &fitButton}) addAndMakeVisible(*c);
     timeline.setSnapMode(SnapMode::EighthNote);
     timeline.setInsertDuration(kTicksPerQuarter);
@@ -163,14 +169,20 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     velocitySlider.setValue(90.0, juce::dontSendNotification);
     velocitySlider.setEnabled(false);
     velocitySlider.onValueChange = [this] { roll.setSelectedVelocity(static_cast<int>(velocitySlider.getValue())); };
-    muteChordsButton.setClickingTogglesState(true);
-    muteMelodyButton.setClickingTogglesState(true);
-    muteChordsButton.onClick = [this] { muteChanged(); };
-    muteMelodyButton.onClick = [this] { muteChanged(); };
-    muteChordsButton.setTooltip("Silence the chords in playback (channel 1). Exports are not affected.");
-    muteMelodyButton.setTooltip("Silence the melody in playback (channel 2). Exports are not affected.");
-    addAndMakeVisible(muteChordsButton);
-    addAndMakeVisible(muteMelodyButton);
+    styleLabel(outputCaption, 12.0f, true, ui::mutedTextColour());
+    outputCaption.setText("Output", juce::dontSendNotification);
+    for (auto* b : {&outputChordsButton, &outputMelodyButton, &outputBothButton}) {
+        b->setClickingTogglesState(true);
+        b->setRadioGroupId(7001);  // exactly one of the three
+        b->onClick = [this] { outputChanged(); };
+    }
+    outputChordsButton.setTooltip("Play only the chords (MIDI channel 1) to the host.");
+    outputMelodyButton.setTooltip("Play only the melody (MIDI channel 2) to the host.");
+    outputBothButton.setTooltip("Play chords and melody together. Exports are chosen in the export dialog and are not affected by this.");
+    addAndMakeVisible(outputCaption);
+    addAndMakeVisible(outputChordsButton);
+    addAndMakeVisible(outputMelodyButton);
+    addAndMakeVisible(outputBothButton);
     scaleLimiterButton.setClickingTogglesState(true);
     scaleLimiterButton.onClick = [this] { scaleLimiterChanged(); };
     scaleLimiterButton.setTooltip("SCALE LIMITED: the roll shows only the project scale; new notes, dragging, arrow keys and the generator stay in the scale. "
@@ -359,9 +371,15 @@ ChordSketchEditor::ChordSketchEditor(ChordSketchProcessor& p)
     inspector.onRegenerateAffected = [this] { runGenerator(4); };
     inspector.onMessage = [this](const juce::String& text) { setStatus(text); };
 
-    setResizeLimits(kBaseWidth + inspectorExtraWidth(), kBaseHeight, 1900, 1200);
-    setResizable(true, true);  // the corner handle; extra room goes to the grid
-    setSize(kBaseWidth + inspectorExtraWidth(), kBaseHeight);
+    setResizeLimits(kBaseWidth + inspectorExtraWidth(), kBaseHeight, 4200, 2200);
+    setResizable(true, true);  // the corner handle; extra room goes to the grid and the melody roll
+    {   // open at a size that suits the display (an ultrawide gets a wide window, so sixteenth notes are easy to hit)
+        const auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
+        const auto area = display != nullptr ? display->userArea : juce::Rectangle<int>(0, 0, 1920, 1080);
+        const int width = std::clamp(static_cast<int>(area.getWidth() * 0.6), kBaseWidth, 2600);
+        const int height = std::clamp(static_cast<int>(area.getHeight() * 0.92), kBaseHeight, 1700);
+        setSize(width + inspectorExtraWidth(), height);
+    }
     refreshFromModel();
     chordProcessor.changes().addChangeListener(this);
     startTimerHz(15);
@@ -374,7 +392,7 @@ void ChordSketchEditor::toggleInspector() {
     inspectorOpen = !inspectorOpen;
     inspectorButton.setToggleState(inspectorOpen, juce::dontSendNotification);
     inspectorViewport.setVisible(inspectorOpen);
-    setResizeLimits(kBaseWidth + inspectorExtraWidth(), kBaseHeight, 1900, 1200);
+    setResizeLimits(kBaseWidth + inspectorExtraWidth(), kBaseHeight, 4200, 2200);
     setSize(getWidth() - before + inspectorExtraWidth(), getHeight());
 }
 
@@ -446,10 +464,15 @@ void ChordSketchEditor::resized() {
     insertLengthBox.setBounds(timelineHeader.removeFromLeft(122));
     timelineHeader.removeFromLeft(8);
     fitButton.setBounds(timelineHeader.removeFromLeft(48));
+    timelineHeader.removeFromLeft(6);
+    zoomOutButton.setBounds(timelineHeader.removeFromLeft(32));
+    timelineHeader.removeFromLeft(4);
+    zoomInButton.setBounds(timelineHeader.removeFromLeft(32));
     timelineHint.setBounds(timelineHeader.withTrimmedLeft(8));
     area.removeFromTop(6);
     // a taller window gives its extra height to the grid
-    timeline.setBounds(area.removeFromTop(150 + std::max(0, getHeight() - kBaseHeight)));
+    const int extraHeight = std::max(0, getHeight() - kBaseHeight);
+    timeline.setBounds(area.removeFromTop(150 + extraHeight / 3));  // spare height: a third to the chord grid, two thirds to the melody roll
     area.removeFromTop(8);
 
     // melody piano roll
@@ -461,16 +484,20 @@ void ChordSketchEditor::resized() {
     melodyHeader.removeFromLeft(6);
     labelsBox.setBounds(melodyHeader.removeFromLeft(112));
     melodyHeader.removeFromLeft(6);
-    muteMelodyButton.setBounds(melodyHeader.removeFromRight(88));
-    melodyHeader.removeFromRight(6);
-    muteChordsButton.setBounds(melodyHeader.removeFromRight(88));
+    outputBothButton.setBounds(melodyHeader.removeFromRight(56));
+    melodyHeader.removeFromRight(4);
+    outputMelodyButton.setBounds(melodyHeader.removeFromRight(64));
+    melodyHeader.removeFromRight(4);
+    outputChordsButton.setBounds(melodyHeader.removeFromRight(62));
+    melodyHeader.removeFromRight(4);
+    outputCaption.setBounds(melodyHeader.removeFromRight(46));
     area.removeFromTop(4);
     auto limiterRow = area.removeFromTop(22);
     scaleLimiterButton.setBounds(limiterRow.removeFromLeft(132));
     limiterRow.removeFromLeft(8);
     hiddenNotesLabel.setBounds(limiterRow);
     area.removeFromTop(4);
-    roll.setBounds(area.removeFromTop(172));
+    roll.setBounds(area.removeFromTop(220 + extraHeight - extraHeight / 3));
     area.removeFromTop(4);
     auto melodyFooter = area.removeFromTop(26);
     velocityCaption.setBounds(melodyFooter.removeFromLeft(58));
@@ -589,8 +616,12 @@ void ChordSketchEditor::refreshFromModel() {
     mappingBox.setSelectedId(model.melodySettings.mapping == ColourMapping::DiatonicCentric ? 1 : 2, juce::dontSendNotification);
     paletteBox.setSelectedId(static_cast<int>(model.melodySettings.palette) + 1, juce::dontSendNotification);
     labelsBox.setSelectedId(static_cast<int>(model.melodySettings.labels) + 1, juce::dontSendNotification);
-    muteChordsButton.setToggleState(model.melodySettings.muteChords, juce::dontSendNotification);
-    muteMelodyButton.setToggleState(model.melodySettings.muteMelody, juce::dontSendNotification);
+    {
+        const bool mc = model.melodySettings.muteChords, mm = model.melodySettings.muteMelody;
+        outputChordsButton.setToggleState(!mc && mm, juce::dontSendNotification);
+        outputMelodyButton.setToggleState(mc && !mm, juce::dontSendNotification);
+        outputBothButton.setToggleState(!mc && !mm, juce::dontSendNotification);  // (both muted = a silent project: none is lit)
+    }
     {
         const bool limited = model.melodySettings.scaleLimiter;
         scaleLimiterButton.setToggleState(limited, juce::dontSendNotification);
@@ -772,13 +803,15 @@ void ChordSketchEditor::runGenerator(int action) {
     }
 }
 
-void ChordSketchEditor::muteChanged() {
-    const bool chords = muteChordsButton.getToggleState(), melody = muteMelodyButton.getToggleState();
-    const auto result = chordProcessor.editProgression("Mute", [=](Progression& p) {
-        p.melodySettings.muteChords = chords;
-        p.melodySettings.muteMelody = melody;
+void ChordSketchEditor::outputChanged() {
+    const bool chords = outputChordsButton.getToggleState() || outputBothButton.getToggleState();
+    const bool melody = outputMelodyButton.getToggleState() || outputBothButton.getToggleState();
+    if (!chords && !melody) return;
+    const auto result = chordProcessor.editProgression("Output", [=](Progression& p) {  // stored as the two existing mute flags
+        p.melodySettings.muteChords = !chords;
+        p.melodySettings.muteMelody = !melody;
     });
-    if (!result.ok) setStatus("Could not change the mute: " + juce::String(result.error));
+    if (!result.ok) setStatus("Could not change the output: " + juce::String(result.error));
 }
 
 void ChordSketchEditor::scaleLimiterChanged() {
